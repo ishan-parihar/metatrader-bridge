@@ -11,7 +11,7 @@ import io
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +77,17 @@ class DataStore:
                 commission REAL,
                 swap REAL,
                 time TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_meta (
+                symbol TEXT NOT NULL,
+                timeframe TEXT NOT NULL,
+                last_sync_time TEXT NOT NULL,
+                bar_count INTEGER NOT NULL DEFAULT 0,
+                range_from TEXT,
+                range_to TEXT,
+                status TEXT NOT NULL DEFAULT 'ok',
+                PRIMARY KEY (symbol, timeframe)
             );
         """)
         conn.commit()
@@ -656,6 +667,190 @@ class DataStore:
                 "total_rows": deals_total,
             },
         }
+
+    # ------------------------------------------------------------------
+    # Bulk upsert store methods
+    # ------------------------------------------------------------------
+
+    def store_bars(self, symbol: str, timeframe: str, bars: list[dict]) -> int:
+        """Upsert bars into cache. Converts numeric timestamps to UTC datetime strings.
+
+        Returns row count.
+        """
+        if not bars:
+            return 0
+
+        rows: list[tuple[str, str, str, float, float, float, float, int]] = []
+        for bar in bars:
+            raw_time = bar["time"]
+            if isinstance(raw_time, (int, float)):
+                time_str = datetime.fromtimestamp(raw_time, tz=timezone.utc).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            else:
+                time_str = str(raw_time)
+
+            rows.append(
+                (
+                    symbol.upper(),
+                    timeframe.upper(),
+                    time_str,
+                    float(bar["open"]),
+                    float(bar["high"]),
+                    float(bar["low"]),
+                    float(bar["close"]),
+                    int(bar["tick_volume"]),
+                )
+            )
+
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO bars
+               (symbol, timeframe, time, open, high, low, close, tick_volume)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        self._conn.commit()
+        return len(rows)
+
+    def store_ticks(self, symbol: str, ticks: list[dict]) -> int:
+        """Upsert ticks into cache.
+
+        Returns row count.
+        """
+        if not ticks:
+            return 0
+
+        rows: list[tuple[str, int, float, float, float | None, float | None, int | None]] = []
+        for tick in ticks:
+            rows.append(
+                (
+                    symbol.upper(),
+                    int(tick["time_msc"]),
+                    float(tick["bid"]),
+                    float(tick["ask"]),
+                    float(tick["last"]) if tick.get("last") is not None else None,
+                    float(tick["volume"]) if tick.get("volume") is not None else None,
+                    int(tick["flags"]) if tick.get("flags") is not None else None,
+                )
+            )
+
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO ticks
+               (symbol, time_msc, bid, ask, last, volume, flags)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        self._conn.commit()
+        return len(rows)
+
+    def store_deals(self, deals: list[dict]) -> int:
+        """Upsert deals into cache.
+
+        Returns row count.
+        """
+        if not deals:
+            return 0
+
+        rows: list[tuple[int, int | None, int | None, str, str, str, float | None, float | None, float | None, float | None, float | None, str]] = []
+        for deal in deals:
+            rows.append(
+                (
+                    int(deal["deal_id"]),
+                    int(deal["order_id"]) if deal.get("order_id") is not None else None,
+                    int(deal["position_id"]) if deal.get("position_id") is not None else None,
+                    (deal.get("symbol") or "").upper(),
+                    deal.get("side", ""),
+                    deal.get("entry", ""),
+                    float(deal["volume"]) if deal.get("volume") is not None else None,
+                    float(deal["price"]) if deal.get("price") is not None else None,
+                    float(deal["profit"]) if deal.get("profit") is not None else None,
+                    float(deal["commission"]) if deal.get("commission") is not None else None,
+                    float(deal["swap"]) if deal.get("swap") is not None else None,
+                    str(deal.get("time", "")),
+                )
+            )
+
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO deals
+               (deal_id, order_id, position_id, symbol, side, entry,
+                volume, price, profit, commission, swap, time)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        self._conn.commit()
+        return len(rows)
+
+    def record_sync(
+        self,
+        symbol: str,
+        timeframe: str,
+        bar_count: int,
+        range_from: str | None = None,
+        range_to: str | None = None,
+        status: str = "ok",
+    ) -> None:
+        """Record a sync metadata entry with current UTC timestamp."""
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        self._conn.execute(
+            """INSERT OR REPLACE INTO sync_meta
+               (symbol, timeframe, last_sync_time, bar_count, range_from, range_to, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                symbol.upper(),
+                timeframe.upper(),
+                now,
+                bar_count,
+                range_from,
+                range_to,
+                status,
+            ),
+        )
+        self._conn.commit()
+
+    def get_sync_status(
+        self,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+    ) -> list[dict]:
+        """Query sync metadata with optional filters.
+
+        Returns list of dicts ordered by last_sync_time DESC.
+        """
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if symbol:
+            conditions.append("symbol = ?")
+            params.append(symbol.upper())
+
+        if timeframe:
+            conditions.append("timeframe = ?")
+            params.append(timeframe.upper())
+
+        where = " AND ".join(conditions)
+        where_clause = f"WHERE {where}" if where else ""
+
+        cursor = self._conn.execute(
+            f"""SELECT symbol, timeframe, last_sync_time, bar_count,
+                       range_from, range_to, status
+                FROM sync_meta {where_clause}
+                ORDER BY last_sync_time DESC""",
+            params,
+        )
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "symbol": row["symbol"],
+                "timeframe": row["timeframe"],
+                "last_sync_time": row["last_sync_time"],
+                "bar_count": row["bar_count"],
+                "range_from": row["range_from"],
+                "range_to": row["range_to"],
+                "status": row["status"],
+            }
+            for row in rows
+        ]
 
     # ------------------------------------------------------------------
     # Lifecycle

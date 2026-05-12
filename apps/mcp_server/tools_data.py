@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
 from typing import Any, Optional
+
 from mcp.types import ToolAnnotations
+
 from . import mcp
 
 _READ_ANNOTATIONS = ToolAnnotations(
@@ -285,5 +288,158 @@ def mt5_data_stats() -> dict:
         if store is None:
             return {"error": "Data store unavailable"}
         return store.get_stats()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ------------------------------------------------------------------
+# Sync helpers
+# ------------------------------------------------------------------
+
+_sync_adapter = None
+
+
+def _get_sync_adapter():
+    """Lazy-init PyMT5Adapter for data sync from live MT5."""
+    global _sync_adapter
+    if _sync_adapter is None:
+        try:
+            from mt5_mcp.adapters.pymt5_adapter.adapter import PyMT5Adapter
+            _sync_adapter = PyMT5Adapter()
+        except Exception as e:
+            _sync_adapter = None
+            return None
+    return _sync_adapter
+
+
+@mcp.tool(annotations=_READ_ANNOTATIONS)
+def mt5_data_sync(
+    symbol: str,
+    timeframe: str = "H1",
+    count: int = 1000,
+) -> dict:
+    """Fetch historical OHLCV bars from live MT5 and store them in the local
+    DataStore cache.
+
+    Use this to automatically populate the local data cache with current
+    market data from MT5. After syncing, cached data can be queried via
+    mt5_data_bars, mt5_data_ticks, mt5_data_deals without an active MT5
+    connection. Syncs bars data only — for ticks use mt5_get_ticks.
+
+    Args:
+        symbol (str): Trading symbol to sync (e.g. "EURUSD", "XAUUSD").
+            Must be an active symbol in the MT5 terminal.
+        timeframe (str): Bar timeframe. One of "M1", "M5", "M15", "M30",
+            "H1", "H4", "D1", "W1", "MN". (default: "H1")
+        count (int): Number of bars to fetch, 1-100000. Higher values take
+            longer to sync. (default: 1000, range: 1-100000)
+
+    Returns:
+        dict: Sync result with keys:
+            - symbol (str): The symbol that was synced
+            - timeframe (str): The timeframe that was synced
+            - bars_synced (int): Number of bars stored in cache
+            - range_from (str, optional): Timestamp of oldest bar
+            - range_to (str, optional): Timestamp of newest bar
+            - status (str): "ok" or "error"
+            - error (str, present on failure): Error description
+
+    Example: mt5_data_sync(symbol="EURUSD", timeframe="H1", count=5000)
+
+    Note: Requires a live MT5 terminal connection via the PyMT5Adapter.
+    Falls back gracefully with an error if MT5 is not available.
+    Use mt5_data_sync_status to check when data was last synced.
+    """
+    try:
+        adapter = _get_sync_adapter()
+        if adapter is None:
+            return {"error": "MT5 adapter unavailable — is MetaTrader5 installed and running?"}
+
+        bars_result = adapter.get_bars(symbol, timeframe, count)
+        if not bars_result.data:
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "bars_synced": 0,
+                "status": "ok",
+                "message": "No bars returned from MT5 for this symbol/timeframe",
+            }
+
+        bar_dicts = [b.model_dump() for b in bars_result.data]
+        store = _get_data_store()
+        if store is None:
+            return {"error": "Data store unavailable — cannot persist synced data"}
+
+        synced = store.store_bars(symbol, timeframe, bar_dicts)
+        oldest = datetime.fromtimestamp(
+            bar_dicts[0]["time"], tz=timezone.utc
+        ).isoformat()
+        newest = datetime.fromtimestamp(
+            bar_dicts[-1]["time"], tz=timezone.utc
+        ).isoformat()
+
+        store.record_sync(
+            symbol=symbol,
+            timeframe=timeframe,
+            bar_count=synced,
+            range_from=oldest,
+            range_to=newest,
+        )
+
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "bars_synced": synced,
+            "range_from": oldest,
+            "range_to": newest,
+            "source": "mt5_live",
+            "status": "ok",
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "error"}
+
+
+@mcp.tool(annotations=_READ_ANNOTATIONS)
+def mt5_data_sync_status(
+    symbol: Optional[str] = None,
+    timeframe: Optional[str] = None,
+) -> dict:
+    """Query the sync history and status of the DataStore cache.
+
+    Use this to check when data was last synced from live MT5 for specific
+    symbols and timeframes. Helps determine if cached data is fresh enough
+    for analysis, or if a new mt5_data_sync call is needed.
+
+    Args:
+        symbol (Optional[str]): Filter by symbol (e.g. "EURUSD").
+            Returns all symbols if omitted. (default: None)
+        timeframe (Optional[str]): Filter by timeframe (e.g. "H1").
+            Returns all timeframes if omitted. (default: None)
+
+    Returns:
+        dict: Sync status with keys:
+            - entries (list): Array of sync metadata records, each with:
+                - symbol (str): Trading symbol
+                - timeframe (str): Bar timeframe
+                - last_sync_time (str): Last sync UTC timestamp
+                - bar_count (int): Number of bars synced
+                - range_from (str, optional): Oldest bar timestamp
+                - range_to (str, optional): Newest bar timestamp
+                - status (str): Sync status ("ok" or "error")
+            - total_entries (int): Number of sync records returned
+            - error (str, present on failure): Error description
+
+    Example: mt5_data_sync_status(symbol="EURUSD")
+
+    Note: Reads from the local DataStore's sync_meta table. Only shows
+    syncs performed by mt5_data_sync — manual imports via mt5_data_import
+    are not tracked as sync events.
+    """
+    try:
+        store = _get_data_store()
+        if store is None:
+            return {"error": "Data store unavailable", "entries": [], "total_entries": 0}
+        entries = store.get_sync_status(symbol, timeframe)
+        return {"entries": entries, "total_entries": len(entries)}
     except Exception as e:
         return {"error": str(e)}

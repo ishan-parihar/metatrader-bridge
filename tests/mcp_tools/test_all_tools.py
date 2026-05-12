@@ -251,6 +251,9 @@ def mock_tcp_bridge():
         "tools_management",
         "tools_vibe",
         "tools_wait",
+        "tools_analysis",
+        "tools_fundamentals",
+        "tools_streaming",
     ]:
         mod = __import__(f"apps.mcp_server.{name}", fromlist=["mcp"])
         importlib.reload(mod)
@@ -344,14 +347,12 @@ class TestResourceTools:
     """Test read-only resource tools."""
 
     TOOLS = [
-        ("mt5_terminal_status", {}),
         ("mt5_account_summary", {}),
         ("mt5_symbol_info", {"symbol": "XAUUSDm"}),
         ("mt5_deals_history", {}),
         ("mt5_performance_summary", {}),
         ("mt5_positions_open", {}),
         ("mt5_orders_pending", {}),
-        ("mt5_bridge_status", {}),
     ]
 
     @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
@@ -366,7 +367,7 @@ class TestResourceTools:
 
 
 class TestMarketDataTools:
-    """Test market data tools."""
+    """Test market data tools — get_* duplicates removed (unified under mt5_* names)."""
 
     TOOLS = [
         ("mt5_get_bars", {"symbol": "XAUUSDm", "timeframe": "H1", "count": 100}),
@@ -376,14 +377,8 @@ class TestMarketDataTools:
         ),
         ("mt5_get_ticks", {"symbol": "XAUUSDm", "count": 100}),
         ("mt5_get_order_book", {"symbol": "XAUUSDm"}),
-        ("mt5_get_symbol_info", {"symbol": "XAUUSDm"}),
-        ("mt5_get_deals_history", {}),
-        ("mt5_get_account_summary", {}),
-        ("mt5_get_positions", {}),
-        ("mt5_get_orders", {}),
         ("mt5_get_chart_screenshot", {}),
         ("mt5_market_snapshot", {"symbols": ["XAUUSDm"]}),
-        ("mt5_chart_intelligence", {"symbol": "XAUUSDm", "timeframe": "H1"}),
     ]
 
     @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
@@ -492,9 +487,8 @@ class TestMetacognitionContextTools:
         ("mt5_reflect_on_trades", {}),
         ("mt5_trading_insights", {}),
         ("mt5_trading_context", {"symbol": "XAUUSDm"}),
-        ("mt5_trading_coach", {"symbol": "XAUUSDm"}),
-        ("mt5_decision_support", {"symbol": "XAUUSDm", "side": "buy"}),
-        ("mt5_monitor_position", {"position_id": "12345"}),
+        ("mt5_agent_context", {"query": "market"}),
+        ("mt5_system_context", {"query": "capabilities"}),
     ]
 
     @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
@@ -512,7 +506,6 @@ class TestPortfolioTools:
     """Test portfolio management tools."""
 
     TOOLS = [
-        ("mt5_portfolio_exposure", {}),
         ("mt5_portfolio_risk", {}),
         (
             "mt5_pre_trade_gate",
@@ -603,6 +596,8 @@ class TestDataStoreTools:
         ("mt5_data_ticks", {"symbol": "XAUUSDm", "limit": 10}),
         ("mt5_data_deals", {"symbol": "XAUUSDm", "limit": 10}),
         ("mt5_data_stats", {}),
+        ("mt5_data_sync", {"symbol": "XAUUSDm", "timeframe": "H1", "count": 10}),
+        ("mt5_data_sync_status", {}),
     ]
 
     @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
@@ -612,22 +607,85 @@ class TestDataStoreTools:
 
 
 # ---------------------------------------------------------------------------
-# Tier 9: ML Tools — REMOVED (dead placeholder code, no models shipped)
+# Tier 9: Analysis Tools (16 tools)
 # ---------------------------------------------------------------------------
 
 
+class TestAnalysisTools:
+    """Test technical analysis tools — read-only, mock-safe."""
+
+    TOOLS = [
+        ("mt5_market_regime", {"symbol": "XAUUSDm"}),
+        ("mt5_market_structure", {"symbol": "XAUUSDm"}),
+        ("mt5_vwap", {"symbol": "XAUUSDm"}),
+        ("mt5_analysis_divergence", {"symbol": "XAUUSDm"}),
+        ("mt5_analysis_multi_bar_patterns", {"symbol": "XAUUSDm"}),
+        ("mt5_volume_at_price", {"symbol": "XAUUSDm"}),
+        ("mt5_analysis_volume_profile", {"symbol": "XAUUSDm"}),
+        ("mt5_analysis_momentum", {"symbol": "XAUUSDm"}),
+        ("mt5_support_resistance", {"symbol": "XAUUSDm"}),
+        ("mt5_volatility_profile", {"symbol": "XAUUSDm"}),
+        ("mt5_opportunity_rank", {}),
+        ("mt5_setup_probability", {"symbol": "XAUUSDm", "side": "buy"}),
+        ("mt5_strategy_selector", {"symbol": "XAUUSDm"}),
+        ("mt5_multi_timeframe_indicators", {"symbol": "XAUUSDm"}),
+        ("mt5_correlation_matrix", {"symbols": "XAUUSDm,EURUSD"}),
+        ("mt5_market_scan", {}),
+    ]
+
+    @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
+    def test_analysis_tool(self, mcp_server, tool_name, kwargs):
+        result = call_tool_sync(mcp_server, tool_name, kwargs)
+        verify_tool_result(tool_name, result)
+
+
 # ---------------------------------------------------------------------------
-# Tier 10: Management Tools (5 tools)
+# Tier 10: Fundamentals Tools (3 tools)
+# ---------------------------------------------------------------------------
+
+
+class TestFundamentalsTools:
+    """Test fundamental analysis tools."""
+
+    TOOLS = [
+        ("mt5_economic_risk_assessment", {}),
+        ("mt5_market_screener", {"symbols": "EURUSD,GBPUSD,XAUUSD"}),
+        ("mt5_news_sentiment_composite", {"symbol": "XAUUSD"}),
+    ]
+
+    @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
+    def test_fundamentals_tool(self, mcp_server, tool_name, kwargs):
+        result = call_tool_sync(mcp_server, tool_name, kwargs)
+        verify_tool_result(tool_name, result)
+
+
+# ---------------------------------------------------------------------------
+# Tier 11: Streaming Tools (3 tools)
+# ---------------------------------------------------------------------------
+
+
+class TestStreamingTools:
+    """Test streaming subscription tools."""
+
+    TOOLS = [
+        ("mt5_stream_subscribe", {"symbols": ["XAUUSDm"], "timeframes": ["M1"]}),
+        ("mt5_stream_unsubscribe", {"symbols": ["XAUUSDm"]}),
+        ("mt5_stream_status", {}),
+    ]
+
+    @pytest.mark.parametrize("tool_name,kwargs", TOOLS)
+    def test_streaming_tool(self, mcp_server, tool_name, kwargs):
+        result = call_tool_sync(mcp_server, tool_name, kwargs)
+        verify_tool_result(tool_name, result)
+
+
+# ---------------------------------------------------------------------------
+# Tier 12: Management Tools (5 tools)
 # ---------------------------------------------------------------------------
 
 
 class TestManagementTools:
     """Test management and health tools."""
-
-    def test_mt5_health(self, mcp_server):
-        result = call_tool_sync(mcp_server, "mt5_health", {})
-        verify_tool_result("mt5_health", result)
-        assert "status" in result
 
     def test_mt5_tool_status(self, mcp_server):
         result = call_tool_sync(mcp_server, "mt5_tool_status", {})
@@ -700,33 +758,24 @@ class TestErrorResilience:
 class TestToolRegistration:
     """Verify all tools are properly registered."""
 
-    EXPECTED_TOOL_COUNT = 74
+    EXPECTED_TOOL_COUNT = 91
 
     EXPECTED_TOOLS = {
-        # Resources (8)
-        "mt5_terminal_status",
+        # Resources (5) — duplicates purged
         "mt5_account_summary",
         "mt5_symbol_info",
         "mt5_deals_history",
         "mt5_performance_summary",
         "mt5_positions_open",
         "mt5_orders_pending",
-        "mt5_bridge_status",
-        # Market data (12)
+        # Market data (8) — get_* duplicates purged, chart_intelligence merged
         "mt5_get_bars",
         "mt5_get_indicator",
         "mt5_get_ticks",
         "mt5_get_order_book",
-        "mt5_get_symbol_info",
-        "mt5_get_deals_history",
-        "mt5_get_account_summary",
-        "mt5_get_positions",
-        "mt5_get_orders",
         "mt5_get_chart_screenshot",
         "mt5_market_snapshot",
-        "mt5_chart_intelligence",
-        # Analysis tools — REMOVED (16 tools, superseded by Vibe-Trading integration)
-        # Trading (16)
+        # Trading (12)
         "mt5_submit_market_order",
         "mt5_submit_market_order_via_bridge",
         "mt5_submit_pending_order",
@@ -739,16 +788,14 @@ class TestToolRegistration:
         "mt5_calculate_position_size",
         "mt5_validate_trade_setup",
         "mt5_trail_position",
-        "mt5_news_fetch",
-        "mt5_news_enrich",
-        "mt5_news_pools",
-        "mt5_economic_calendar",
-        # Metacognition (3)
+        # Metacognition + Context (4)
         "mt5_log_trade_decision",
         "mt5_reflect_on_trades",
         "mt5_trading_insights",
-        # Portfolio (5)
-        "mt5_portfolio_exposure",
+        "mt5_trading_context",
+        "mt5_agent_context",
+        "mt5_system_context",
+        # Portfolio (4) — exposure removed
         "mt5_portfolio_risk",
         "mt5_pre_trade_gate",
         "mt5_reconcile",
@@ -766,20 +813,45 @@ class TestToolRegistration:
         "mt5_ea_trailing_stop",
         "mt5_ea_trailing_list",
         "mt5_ea_trailing_tick",
-        # Data (5)
+        # Data (7) — +mt5_data_sync, mt5_data_sync_status
         "mt5_data_import",
         "mt5_data_bars",
         "mt5_data_ticks",
         "mt5_data_deals",
         "mt5_data_stats",
-        # ML tools — REMOVED (dead placeholder code)
-        # Management (5)
-        "mt5_health",
+        "mt5_data_sync",
+        "mt5_data_sync_status",
+        # Management (5) — health removed
         "mt5_tool_status",
         "mt5_freeze_status",
         "mt5_thaw",
         "mt5_safe_shutdown",
         "mt5_emergency_liquidate",
+        # Analysis (14)
+        "mt5_market_regime",
+        "mt5_market_structure",
+        "mt5_vwap",
+        "mt5_analysis_divergence",
+        "mt5_analysis_multi_bar_patterns",
+        "mt5_volume_at_price",
+        "mt5_analysis_volume_profile",
+        "mt5_analysis_momentum",
+        "mt5_support_resistance",
+        "mt5_volatility_profile",
+        "mt5_opportunity_rank",
+        "mt5_setup_probability",
+        "mt5_strategy_selector",
+        "mt5_multi_timeframe_indicators",
+        "mt5_correlation_matrix",
+        "mt5_market_scan",
+        # Fundamentals (4)
+        "mt5_economic_risk_assessment",
+        "mt5_market_screener",
+        "mt5_news_sentiment_composite",
+        # Streaming (3)
+        "mt5_stream_subscribe",
+        "mt5_stream_unsubscribe",
+        "mt5_stream_status",
         # Wait
         "mt5_wait_for_price",
         # Vibe (6)
@@ -789,6 +861,13 @@ class TestToolRegistration:
         "vibe_backtest",
         "vibe_swarm_to_signal",
         "vibe_web_search",
+        # News (3)
+        "mt5_news_fetch",
+        "mt5_news_enrich",
+        "mt5_news_pools",
+        "mt5_economic_calendar",
+        # Coach
+
     }
 
     def test_tool_count(self, mcp_server):

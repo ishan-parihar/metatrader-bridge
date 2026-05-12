@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 
 class OwnershipMixin(BaseModel):
@@ -958,3 +958,37 @@ class PortfolioRiskRequest(BaseModel):
     symbol: str | None = None
     days: int | None = None
     limit: int | None = None
+
+
+# ============================================================
+# P0 Additions: Backtesting, Data Sync, Script Execution
+# ============================================================
+
+
+class BacktestRunRequest(BaseModel):
+    """Run a strategy backtest on historical data."""
+
+    symbol: str
+    timeframe: str = "H1"
+    strategy_name: str = "ma_cross"
+    params: dict[str, Any] = {}
+    from_date: str | None = None
+    to_date: str | None = None
+    initial_balance: float = 10000.0
+    volume_lots: float = 0.1
+
+
+class DataSyncRequest(BaseModel):
+    """Sync historical market data from MT5 terminal to local cache."""
+
+    symbol: str
+    timeframe: str = "M1"
+    count: int = 1000
+
+
+class ScriptRunRequest(BaseModel):
+    """Run a Python strategy validation script in a sandboxed subprocess."""
+
+    code: str
+    timeout: int = 30
+    env_vars: dict[str, str] = {}

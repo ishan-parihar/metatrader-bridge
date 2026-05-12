@@ -11,8 +11,6 @@ Dependencies:
     - mt5_mcp.services.news_service (fetch_news)
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from datetime import datetime, timezone, timedelta

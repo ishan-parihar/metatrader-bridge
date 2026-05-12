@@ -129,6 +129,9 @@ from mt5_mcp.schemas.tools import (
     HistoricalBarsRequest,
     HistoricalTicksRequest,
     HistoricalDealsRequest,
+    BacktestRunRequest,
+    DataSyncRequest,
+    ScriptRunRequest,
 )
 
 
@@ -6570,6 +6573,148 @@ def tool_data_stats() -> dict:
     if store is None:
         return {"error": "Data store unavailable"}
     return store.get_stats()
+
+
+# ============================================================
+# P0 Additions: Data Sync, Backtesting, Script Execution
+# ============================================================
+
+
+@app.post("/tools/data/sync", response_model=dict)
+async def tool_data_sync(request: DataSyncRequest) -> dict:
+    """Sync historical data from MT5 terminal to local cache."""
+    from mt5_mcp.adapters.pymt5_adapter import PyMT5Adapter
+
+    store = _get_data_store()
+    if store is None:
+        return {"status": "error", "message": "Data store unavailable"}
+
+    adapter = PyMT5Adapter()
+    adapter._ensure_initialized()
+
+    bars = adapter.get_bars(request.symbol, request.timeframe, min(request.count, 100000))
+    if not bars or not bars.data:
+        return {"status": "error", "message": f"No bars for {request.symbol} {request.timeframe}"}
+
+    bar_dicts = [b.model_dump() for b in bars.data]
+    stored = store.store_bars(request.symbol, request.timeframe, bar_dicts)
+    store.record_sync(request.symbol, request.timeframe, stored)
+
+    return {
+        "status": "ok",
+        "symbol": request.symbol,
+        "timeframe": request.timeframe,
+        "bars_stored": stored,
+    }
+
+
+@app.get("/tools/data/sync", response_model=dict)
+def tool_data_sync_status(symbol: str | None = None, timeframe: str | None = None) -> dict:
+    """Get data sync status from the sync_meta table."""
+    store = _get_data_store()
+    if store is None:
+        return {"error": "Data store unavailable"}
+    return {"sync_entries": store.get_sync_status(symbol, timeframe)}
+
+
+_backtest_results: dict[str, dict] = {}
+
+
+@app.post("/tools/backtest/run", response_model=dict)
+async def tool_backtest_run(request: BacktestRunRequest) -> dict:
+    """Run a strategy backtest using cached or live data."""
+    from mt5_mcp.adapters.pymt5_adapter import PyMT5Adapter
+    from mt5_mcp.services.backtest_engine import run_backtest
+
+    store = _get_data_store()
+    if store is None:
+        return {"status": "error", "message": "Data store unavailable"}
+
+    cached = store.query_bars(request.symbol, request.timeframe, limit=100000)
+
+    if not cached:
+        adapter = PyMT5Adapter()
+        adapter._ensure_initialized()
+        bars = adapter.get_bars(request.symbol, request.timeframe, 5000)
+        if not bars or not bars.data:
+            return {"status": "error", "message": "No data available for backtest"}
+        cached = [b.model_dump() for b in bars.data]
+        store.store_bars(request.symbol, request.timeframe, cached)
+
+    result = run_backtest(
+        symbol=request.symbol,
+        timeframe=request.timeframe,
+        strategy_name=request.strategy_name,
+        bars_data=cached,
+        params=request.params,
+        initial_balance=request.initial_balance,
+        volume_lots=request.volume_lots,
+    )
+    _backtest_results[result["backtest_id"]] = result
+    return result
+
+
+@app.get("/tools/backtest/result/{backtest_id}", response_model=dict)
+def tool_backtest_result(backtest_id: str) -> dict:
+    """Get a backtest result by its ID."""
+    result = _backtest_results.get(backtest_id)
+    if not result:
+        return {"status": "error", "message": f"Backtest {backtest_id} not found"}
+    return result
+
+
+@app.post("/tools/script/run", response_model=dict)
+async def tool_script_run(request: ScriptRunRequest) -> dict:
+    """Run a Python strategy validation script in a sandboxed subprocess."""
+    import json
+    import os
+    import subprocess
+    import sys
+
+    sandbox_code = (
+        "import sys, json, traceback\n"
+        f"\n{request.code}\n\n"
+        "if not sys.stdin.isatty():\n"
+        "    input_data = json.loads(sys.stdin)\n"
+        "else:\n"
+        "    input_data = {}\n\n"
+        "try:\n"
+        "    if 'run' in dir():\n"
+        "        result = run(input_data)\n"
+        "    elif 'main' in dir():\n"
+        "        result = main(input_data)\n"
+        "    else:\n"
+        "        result = {'error': 'No run() or main() function defined'}\n"
+        "    print(json.dumps(result))\n"
+        "except Exception as e:\n"
+        "    print(json.dumps({'error': str(e), 'traceback': traceback.format_exc()}))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", sandbox_code],
+            capture_output=True,
+            text=True,
+            timeout=request.timeout,
+            env={**os.environ, **request.env_vars},
+        )
+        stdout = proc.stdout.strip()
+        stderr = proc.stderr.strip()
+
+        try:
+            result_data = json.loads(stdout) if stdout else {}
+        except json.JSONDecodeError:
+            result_data = {"stdout": stdout}
+
+        return {
+            "status": "ok" if proc.returncode == 0 else "error",
+            "returncode": proc.returncode,
+            "result": result_data,
+            "stderr": stderr or None,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": f"Script timed out after {request.timeout}s"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 # ============================================================
