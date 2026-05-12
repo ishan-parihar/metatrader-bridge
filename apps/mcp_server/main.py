@@ -959,6 +959,13 @@ import os as _os
 
 _TCP_BRIDGE_ENABLED = _os.getenv("MT5_TCP_BRIDGE_ENABLED", "true").lower() == "true"
 
+# Streaming manager for WebSocket price broadcasts
+from src.mt5_mcp.streaming.stream_manager import StreamManager  # noqa: E402
+from .tools_streaming import set_stream_manager  # noqa: E402
+
+_stream_manager = StreamManager()
+set_stream_manager(_stream_manager)
+
 
 def _parse_payload(payload) -> dict:
     """Parse EA payload, handling both string and dict formats."""
@@ -991,6 +998,35 @@ def _await_result(req_id: str, timeout_s: float = 20.0, poll_s: float = 0.1) -> 
 
 
 from apps.mcp_server.shared import _tcp_send_and_await, _batch_enqueue_and_await
+
+
+# ---------------------------------------------------------------------------
+# Streaming lifecycle — start/stop the tick poll loop with the server
+# ---------------------------------------------------------------------------
+
+
+@app.on_event("startup")
+async def start_streaming():
+    """Start the WebSocket stream manager background poll loop on server start."""
+    from mt5_mcp.observability.logging import logger as _s_logger
+
+    try:
+        await _stream_manager.start()
+        _s_logger.info("Streaming poll loop started")
+    except Exception as e:
+        _s_logger.warning(f"Streaming start failed: {e}")
+
+
+@app.on_event("shutdown")
+async def stop_streaming():
+    """Stop the WebSocket stream manager background poll loop on server shutdown."""
+    from mt5_mcp.observability.logging import logger as _s_logger
+
+    try:
+        await _stream_manager.stop()
+        _s_logger.info("Streaming poll loop stopped")
+    except Exception as e:
+        _s_logger.warning(f"Streaming stop failed: {e}")
 
 
 def _map_trade_retcode(rc: int | str | None) -> str | None:
@@ -6550,3 +6586,88 @@ def tool_emergency_liquidate(keep_frozen: bool = Body(True, embed=True)) -> dict
     from apps.mcp_server.tools_management import mt5_emergency_liquidate
 
     return mt5_emergency_liquidate(keep_frozen=keep_frozen)
+
+
+# ============================================================
+# WebSocket Streaming — real-time price data for AI agents
+# ============================================================
+
+
+@app.websocket("/ws/prices")
+async def ws_prices(websocket: WebSocket):
+    """Real-time price streaming endpoint via WebSocket.
+
+    AI agents connect here to receive live tick data. Authentication
+    is via ``?token=`` query parameter (optional — if the server has
+    an API_TOKEN configured, it must match).
+
+    Protocol:
+      1. Connect: ``ws://host:8010/ws/prices?token=<optional-token>``
+      2. Send JSON commands:
+           ``{"command": "subscribe", "symbol": "EURUSD"}``
+           ``{"command": "unsubscribe", "symbol": "EURUSD"}``
+           ``{"command": "ping"}``
+      3. Receive JSON messages:
+           ``{"type": "tick", "symbol": "EURUSD", "data": {...}, "timestamp": ...}``
+           ``{"type": "ack", "command": "subscribe", "symbol": "EURUSD"}``
+           ``{"type": "pong"}``
+           ``{"type": "error", "message": "..."}``
+    """
+    from fastapi import WebSocketDisconnect as _WebSocketDisconnect
+
+    await websocket.accept()
+
+    # Optional token validation
+    token = websocket.query_params.get("token", "")
+    if token:
+        try:
+            if hasattr(get_settings_cached(), "command_secret"):
+                expected = get_settings_cached().command_secret
+                if expected and token != expected:
+                    await websocket.send_json(
+                        {"type": "error", "message": "Invalid token"}
+                    )
+                    await websocket.close(code=4001)
+                    return
+        except Exception:
+            pass
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            cmd = data.get("command", "")
+            symbol = data.get("symbol", "")
+
+            if cmd == "subscribe":
+                if not symbol:
+                    await websocket.send_json(
+                        {"type": "error", "message": "symbol is required"}
+                    )
+                    continue
+                await _stream_manager.subscribe(websocket, symbol)
+                await websocket.send_json(
+                    {"type": "ack", "command": "subscribe", "symbol": symbol}
+                )
+            elif cmd == "unsubscribe":
+                sym = symbol if symbol else None
+                await _stream_manager.unsubscribe(websocket, sym)
+                await websocket.send_json(
+                    {
+                        "type": "ack",
+                        "command": "unsubscribe",
+                        "symbol": sym or "all",
+                    }
+                )
+            elif cmd == "ping":
+                await websocket.send_json({"type": "pong"})
+            else:
+                await websocket.send_json(
+                    {"type": "error", "message": f"Unknown command: {cmd}"}
+                )
+    except _WebSocketDisconnect:
+        _stream_manager.unsubscribe(websocket)
+    except Exception:
+        from mt5_mcp.observability.logging import logger as _ws_logger
+
+        _ws_logger.exception("WebSocket /ws/prices error")
+        _stream_manager.unsubscribe(websocket)
