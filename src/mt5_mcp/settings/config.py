@@ -29,7 +29,7 @@ class Settings:
     environment: str = os.getenv("MT5_ENV", "demo")
     execution_mode: str = os.getenv("MT5_EXECUTION_MODE", "human_approval_required")
     adapter: str = os.getenv("MT5_ADAPTER", "pymt5")
-    gateway_url: str = os.getenv("MT5_GATEWAY_URL", "http://127.0.0.1:8020")
+    gateway_url: str = os.getenv("MT5_GATEWAY_URL", "http://127.0.0.1:8010")
     redis_url: str = os.getenv("MT5_REDIS_URL", "redis://localhost:6379/0")
     symbol_suffix: str = os.getenv("MT5_SYMBOL_SUFFIX", "m")
     strategy_magic_numbers: dict[str, int] = field(

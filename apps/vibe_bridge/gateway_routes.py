@@ -102,10 +102,25 @@ async def vibe_call_tool(req: VibeToolRequest):
 @router.get("/skills")
 async def vibe_list_skills():
     """List all 69 Vibe-Trading finance skills."""
-    client = get_client()
-    await client.ensure_ready()
-    result = await client.list_skills()
-    return {"skills": result}
+    try:
+        client = get_client()
+        await client.ensure_ready()
+        result = await client.list_skills()
+        return {"skills": result}
+    except RuntimeError as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=503,
+            detail=f"Vibe-Trading server unavailable: {e}. Ensure VIBE_TRADING_DIR is configured and the server is installed.",
+        )
+    except Exception as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=503,
+            detail=f"Vibe-Trading error: {e}",
+        )
 
 
 @router.post("/market-data")

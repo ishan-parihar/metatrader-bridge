@@ -7,12 +7,14 @@ with -32001 because no response can be written to stdout.
 
 Fix: Monkey-patch FuncMetadata.call_fn_with_arg_validation to run sync
 functions via asyncio.to_thread(), preventing event loop blocking.
+This preserves the original argument validation (pre_parse_json,
+model_validate, model_dump) and only wraps the sync function call itself
+in a thread pool executor.
 """
 
 from __future__ import annotations
 
 import asyncio
-from functools import wraps
 from typing import Any, Callable
 
 from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
@@ -27,15 +29,21 @@ async def _patched_call_fn_with_arg_validation(
     arguments_to_validate: dict[str, Any],
     arguments_to_pass_directly: dict[str, Any] | None,
 ) -> Any:
-    if fn_is_async:
-        return await _original_call(
-            self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly
-        )
+    # Always perform the full validation (same as original FastMCP code).
+    # This normalizes types, applies defaults, and handles JSON pre-parsing
+    # before the function is ever called.
+    arguments_pre_parsed = self.pre_parse_json(arguments_to_validate)
+    arguments_parsed_model = self.arg_model.model_validate(arguments_pre_parsed)
+    arguments_parsed_dict = arguments_parsed_model.model_dump_one_level()
+    arguments_parsed_dict |= arguments_to_pass_directly or {}
 
-    # Run sync function in thread pool to avoid blocking the event loop
-    return await asyncio.to_thread(
-        fn, **arguments_to_validate, **(arguments_to_pass_directly or {})
-    )
+    if fn_is_async:
+        return await fn(**arguments_parsed_dict)
+
+    # Run sync function in thread pool to avoid blocking the event loop.
+    # Without this, a sync fn that calls future.result() stalls the entire
+    # asyncio event loop, preventing SSE transport from writing responses.
+    return await asyncio.to_thread(fn, **arguments_parsed_dict)
 
 
 FuncMetadata.call_fn_with_arg_validation = _patched_call_fn_with_arg_validation

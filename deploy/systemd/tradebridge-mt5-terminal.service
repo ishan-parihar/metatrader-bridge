@@ -1,0 +1,24 @@
+[Unit]
+Description=TradeBridge MT5 Terminal (Bottles/Wine)
+Documentation=file:///home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge/deploy/README.md
+After=network.target graphical-session.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ishanp
+Group=ishanp
+# Bottles/Wine manages its own display environment; no DISPLAY override needed
+ExecStart=/usr/bin/bottles-cli run -p terminal64 -b Apps
+Restart=on-failure
+RestartSec=15
+RestartSteps=5
+RestartMaxDelaySec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tradebridge-mt5
+
+[Install]
+WantedBy=default.target

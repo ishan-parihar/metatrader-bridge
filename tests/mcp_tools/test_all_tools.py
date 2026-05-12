@@ -249,6 +249,8 @@ def mock_tcp_bridge():
         "tools_ea_native",
         "tools_data",
         "tools_management",
+        "tools_vibe",
+        "tools_wait",
     ]:
         mod = __import__(f"apps.mcp_server.{name}", fromlist=["mcp"])
         importlib.reload(mod)
@@ -698,7 +700,7 @@ class TestErrorResilience:
 class TestToolRegistration:
     """Verify all tools are properly registered."""
 
-    EXPECTED_TOOL_COUNT = 70
+    EXPECTED_TOOL_COUNT = 74
 
     EXPECTED_TOOLS = {
         # Resources (8)
@@ -745,11 +747,6 @@ class TestToolRegistration:
         "mt5_log_trade_decision",
         "mt5_reflect_on_trades",
         "mt5_trading_insights",
-        # Context (4)
-        "mt5_trading_context",
-        "mt5_trading_coach",
-        "mt5_decision_support",
-        "mt5_monitor_position",
         # Portfolio (5)
         "mt5_portfolio_exposure",
         "mt5_portfolio_risk",
@@ -782,10 +779,20 @@ class TestToolRegistration:
         "mt5_freeze_status",
         "mt5_thaw",
         "mt5_safe_shutdown",
+        "mt5_emergency_liquidate",
+        # Wait
+        "mt5_wait_for_price",
+        # Vibe (6)
+        "vibe_list_skills",
+        "vibe_get_market_data",
+        "vibe_run_swarm",
+        "vibe_backtest",
+        "vibe_swarm_to_signal",
+        "vibe_web_search",
     }
 
     def test_tool_count(self, mcp_server):
-        """Verify exactly 70 tools registered."""
+        """Verify exactly 74 tools registered."""
         tools = mcp_server._tool_manager.list_tools()
         assert len(tools) == self.EXPECTED_TOOL_COUNT, f"Expected {self.EXPECTED_TOOL_COUNT} tools, got {len(tools)}"
 
@@ -795,21 +802,21 @@ class TestToolRegistration:
         registered = {t.name for t in tools}
 
         missing = self.EXPECTED_TOOLS - registered
-        assert not missing, f"Missing tools: {sorted(missing)}"
+        assert not missing, f"Missing tools: {sorted(missing)} (registered={len(registered)}, expected={len(self.EXPECTED_TOOLS)}). Full registered: {sorted(registered)}"
 
         extra = registered - self.EXPECTED_TOOLS
         if extra:
             print(f"Note: Extra tools registered: {sorted(extra)}")
 
     def test_tool_naming_convention(self, mcp_server):
-        """All tools must follow mt5_ prefix and snake_case."""
+        """All tools must follow mt5_ or vibe_ prefix and snake_case."""
         import re
 
         tools = mcp_server._tool_manager.list_tools()
-        pattern = re.compile(r"^mt5_[a-z][a-z0-9_]*$")
+        pattern = re.compile(r"^(?:mt5|vibe)_[a-z][a-z0-9_]*$")
 
         for tool in tools:
-            assert pattern.match(tool.name), f"Tool '{tool.name}' doesn't follow mt5_snake_case convention"
+            assert pattern.match(tool.name), f"Tool '{tool.name}' doesn't follow naming convention"
 
     def test_tool_annotations(self, mcp_server):
         """All tools must have annotations set."""
@@ -852,6 +859,8 @@ class TestProductionReadiness:
             tools_portfolio,
             tools_resources,
             tools_trading,
+            tools_vibe,
+            tools_wait,
             wait_tools,
         )
 

@@ -177,6 +177,41 @@ def mt5_submit_market_order(
     idempotency_key: Optional[str] = None,
     trail_config: Optional[dict] = None,
 ) -> dict:
+    """
+    Submit a market order for immediate execution at the current market price.
+
+    Primary entry tool for live trades. Sends a buy/sell market order to MT5 via the
+    TCP bridge with HTTP fallback. The policy engine validates the trade before submission.
+    Use for all standard market entries — not for pending/limit/stop orders.
+
+    Args:
+        symbol (str): Trading symbol (e.g., "EURUSD", "BTCUSD", "XAUUSD"). Auto-normalized.
+        side (str): Trade direction — "buy" or "sell".
+        volume_lots (float): Volume in lots. 0.01 = micro, 0.1 = mini, 1.0 = standard.
+            Must respect symbol's volume_min/volume_max/volume_step.
+        sl (Optional[float]): Stop Loss price. 0 or None means no SL. (default: None)
+        tp (Optional[float]): Take Profit price. 0 or None means no TP. (default: None)
+        deviation_points (int): Max slippage in points. Higher = less requote risk
+            but potentially worse fill price. (default: 20)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID. Auto-generated as UUID if None. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key — same key + same call = no duplicate.
+            Auto-generated if None. (default: None)
+        trail_config (Optional[dict]): Trailing stop setup with optional keys:
+            "distance_points" (float), "lock_in_points" (float). (default: None)
+
+    Returns:
+        dict: Contains intent_id, status ("submitted"), adapter ("EASocketAdapter"),
+            broker_order_id (str, MT5 ticket), retcode (str, e.g. "SUCCESS"/"ERROR_*"),
+            message (str), raw (dict, full bridge response).
+
+    Example: mt5_submit_market_order("EURUSD", "buy", 0.1, sl=1.0450, tp=1.0550, deviation_points=15)
+
+    Note: Slippage is set via deviation_points. Policy engine rejects margin-violating orders
+        before reaching broker. Crypto/metal symbols (BTC, ETH, XAU) may need variant suffix
+        (e.g. "BTCUSDm"). Retcode "ERROR_*" indicates broker rejection.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -269,6 +304,38 @@ def mt5_submit_market_order_via_bridge(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Submit a market order via the HTTP bridge fallback path.
+
+    Alternative to mt5_submit_market_order that routes through the HTTP gateway instead
+    of the direct TCP bridge. Use this when the TCP bridge is unavailable or unreachable.
+    The bridge enqueues the command and polls for the result with a 30-second timeout.
+
+    Args:
+        symbol (str): Trading symbol (e.g., "EURUSD", "BTCUSD", "XAUUSD"). Auto-normalized.
+        side (str): Trade direction — "buy" or "sell".
+        volume_lots (float): Volume in lots. 0.01 = micro, 0.1 = mini, 1.0 = standard.
+            Must respect symbol's volume constraints.
+        sl (Optional[float]): Stop Loss price. 0 or None means no SL. (default: None)
+        tp (Optional[float]): Take Profit price. 0 or None means no TP. (default: None)
+        deviation_points (int): Max slippage in points. (default: 20)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID. Auto-generated as UUID if None. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key — prevents duplicate order on retry.
+            Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains intent_id, status ("submitted"), adapter ("HTTPBridgeFallback"),
+            broker_order_id (str, MT5 ticket), retcode (str, e.g. "SUCCESS"/"ERROR_*"),
+            message (str), raw (dict, full bridge response). On timeout, includes a "hint"
+            field advising fallback to mt5_submit_market_order (TCP path).
+
+    Example: mt5_submit_market_order_via_bridge("GBPUSD", "sell", 0.05, sl=1.2500)
+
+    Note: Prefer mt5_submit_market_order (TCP) for lower latency. Use this bridge variant
+        only when TCP is unavailable. Timeout after 30s returns a hint suggesting TCP fallback.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -364,6 +431,39 @@ def mt5_submit_pending_order(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Place a pending order (limit/stop) for future execution at a specified price.
+
+    Use this tool when you want to enter at a specific price level rather than the
+    current market price. Supports all MT5 pending order types: buy limit, sell limit,
+    buy stop, sell stop. The order is triggered when the market reaches the target price.
+
+    Args:
+        symbol (str): Trading symbol (e.g., "EURUSD", "BTCUSD"). Auto-normalized.
+        side (str): Trade direction — "buy" or "sell".
+        kind (str): Pending order type — typically "limit" or "stop".
+        price (float): Trigger/entry price for the pending order.
+        volume_lots (float): Volume in lots. 0.01 = micro, 0.1 = mini, 1.0 = standard.
+        sl (Optional[float]): Stop Loss price. 0 or None means no SL. (default: None)
+        tp (Optional[float]): Take Profit price. 0 or None means no TP. (default: None)
+        deviation (int): Max deviation from price for partial fills. (default: 20)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID. Auto-generated as UUID if None. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key — prevents duplicate order on retry.
+            Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains intent_id, status ("pending_order_submitted"),
+            adapter ("EASocketAdapter"), broker_order_id (str, MT5 order ticket),
+            retcode (str, e.g. "SUCCESS"/"ERROR_*"), message (str), raw (dict).
+
+    Example: mt5_submit_pending_order("EURUSD", "buy", "limit", 1.0500, 0.1)
+
+    Note: Crypto and metal symbols (BTC, ETH, XAU) may not support pending orders on some
+        brokers — retcode 0 with a hint field suggests trying the 'm' symbol variant or
+        using a market order instead. Pending orders occupy margin differently than market orders.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -456,6 +556,30 @@ def mt5_close_position(
     strategy_id: Optional[str] = None,
     intent_id: Optional[str] = None,
 ) -> dict:
+    """
+    Close a single open position by its position ID.
+
+    Use this to exit a specific trade. Attempts TCP bridge first, falls back to HTTP
+    bridge if TCP is unavailable. The position_id must match an open position's ticket
+    number as returned by mt5_positions_open or the broker_order_id from entry tools.
+
+    Args:
+        position_id (str): MT5 position ticket number (e.g., "12345678"). Must be a
+            currently open position. String-format accepted.
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+
+    Returns:
+        dict: Contains position_id, status ("closed" on success), retcode (str),
+            message (str), raw (dict, full bridge response).
+
+    Example: mt5_close_position("12345678")
+
+    Note: Retcode 0 (PENDING) may indicate the close request was accepted but not yet
+        confirmed — check positions list after a short delay. The position must be open
+        on the connected MT5 terminal. Use mt5_close_all_positions for bulk exiting.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -539,6 +663,32 @@ def mt5_close_all_positions(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Close all open positions, optionally filtered by side and/or symbol.
+
+    Mass-exit tool for emergency flattening or session cleanup. Supports optional filters:
+    close only buys/sells, or close positions on a specific symbol. This is a destructive
+    operation — use with caution, especially without filters.
+
+    Args:
+        side (Optional[str]): Filter — "buy" or "sell". If omitted, closes all sides. (default: None)
+        symbol (Optional[str]): Symbol filter (e.g., "EURUSD"). If omitted, closes all symbols. (default: None)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key — prevents re-execution on retry.
+            Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains status ("close_all_positions_completed"), closed_count (int),
+            raw (dict, full bridge response).
+
+    Example: mt5_close_all_positions(symbol="EURUSD")  — closes all EURUSD positions
+
+    Note: If no filters are applied, ALL open positions on the account will be closed.
+        Uses _await_result with a 60-second timeout. TCP bridge used first, HTTP fallback
+        on failure. Not idempotent by default — use idempotency_key for safe retry.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -600,6 +750,32 @@ def mt5_cancel_order(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Cancel a single pending order by its order ID.
+
+    Removes a previously placed pending (limit/stop) order before it gets triggered.
+    Use this to cancel individual orders that are no longer valid. The order_id must
+    match an active pending order ticket from mt5_submit_pending_order.
+
+    Args:
+        order_id (str): MT5 pending order ticket number (e.g., "12345678").
+            String-format accepted. Must be a currently active pending order.
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key. Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains order_id, status ("cancelled" on success, or "error"),
+            raw (dict, full bridge response). On failure, status may be
+            "cancel_failed", "order_not_found", or "error" with details.
+
+    Example: mt5_cancel_order("12345678")
+
+    Note: Distinguish between positions (filled trades) and orders (pending entries).
+        Use mt5_close_position to exit a filled position, mt5_cancel_order to remove
+        a pending order. Error "order_not_found" means the order was already filled or cancelled.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -667,6 +843,31 @@ def mt5_cancel_all_orders(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Cancel all pending orders, optionally filtered by side and/or symbol.
+
+    Mass-cancel tool for clearing pending order books. Supports optional filters to
+    cancel only buy/sell orders or orders on a specific symbol. Useful when a trading
+    plan changes or during market regime shifts where existing pending orders are invalid.
+
+    Args:
+        side (Optional[str]): Filter — "buy" or "sell". If omitted, cancels both sides. (default: None)
+        symbol (Optional[str]): Symbol filter (e.g., "EURUSD"). If omitted, cancels on all symbols. (default: None)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key. Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains status ("cancel_all_orders_completed"), cancelled_count (int),
+            raw (dict, full bridge response).
+
+    Example: mt5_cancel_all_orders(side="buy")  — cancels all buy pending orders
+
+    Note: If no filters are applied, ALL pending orders on the account will be cancelled.
+        Uses _await_result with 60-second timeout. TCP bridge first, HTTP fallback.
+        Cannot cancel orders that have already been filled — those are now positions.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -727,6 +928,33 @@ def mt5_modify_order(
     intent_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
+    """
+    Modify a pending order's price, stop loss, and/or take profit.
+
+    Updates an existing pending (limit/stop) order's parameters before it gets triggered.
+    Supports partial updates — only provided fields are changed. Use this to adjust
+    entries as market conditions change without cancelling and recreating the order.
+
+    Args:
+        order_id (str): MT5 pending order ticket number. Must be an active pending order.
+        new_price (Optional[float]): New trigger/entry price for the pending order. (default: None)
+        new_sl (Optional[float]): New Stop Loss price. (default: None)
+        new_tp (Optional[float]): New Take Profit price. (default: None)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+        idempotency_key (Optional[str]): Safe-retry key. Auto-generated if None. (default: None)
+
+    Returns:
+        dict: Contains order_id, status ("modified" on success, or "error"),
+            raw (dict, full bridge response).
+
+    Example: mt5_modify_order("12345678", new_price=1.0550, new_sl=1.0500)
+
+    Note: Only the fields explicitly provided are updated. Order cannot be modified after
+        it has been triggered/filled. Use mt5_modify_position_sl_tp for modifying SL/TP
+        on an already-filled position.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -802,6 +1030,31 @@ def mt5_modify_position_sl_tp(
     strategy_id: Optional[str] = None,
     intent_id: Optional[str] = None,
 ) -> dict:
+    """
+    Modify the Stop Loss and/or Take Profit on an already-open position.
+
+    Adjusts risk parameters on a filled position without closing it. Supports setting
+    SL independently from TP — omit either to leave it unchanged (note: sending 0 removes it).
+    TCP bridge used first with HTTP fallback.
+
+    Args:
+        position_id (str): MT5 position ticket number. Must be an open position.
+        sl (Optional[float]): New Stop Loss price. Set to 0 or None to remove SL. (default: None)
+        tp (Optional[float]): New Take Profit price. Set to 0 or None to remove TP. (default: None)
+        session_id (Optional[str]): Session label for audit trail. (default: None)
+        strategy_id (Optional[str]): Strategy label for performance attribution. (default: None)
+        intent_id (Optional[str]): Unique intent ID for correlation. (default: None)
+
+    Returns:
+        dict: Contains position_id, status ("modified" on success, or "error"),
+            retcode (str), message (str), raw (dict, full bridge response).
+
+    Example: mt5_modify_position_sl_tp("12345678", sl=1.0400, tp=1.0600)
+
+    Note: SL and TP values are absolute price levels, not distances/points.
+        Broker/server restrictions may apply (e.g., minimum SL distance from market).
+        Use mt5_trail_position for automated trailing stop logic.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -873,6 +1126,35 @@ def mt5_calculate_position_size(
     stop_loss_price: float,
     equity: Optional[float] = None,
 ) -> dict:
+    """
+    Calculate the safe position size (in lots) based on account risk parameters.
+
+    Pre-trade risk calculator. Uses account equity, risk percentage, entry price and
+    stop loss to compute a lot size that respects max risk tolerance. Fetches symbol
+    info (tick_size, tick_value, volume_min/max/step) and account equity automatically.
+
+    Args:
+        symbol (str): Trading symbol (e.g., "EURUSD", "BTCUSD"). Must have tick data available.
+        risk_percent (float): Percentage of account equity to risk on this trade (e.g., 1.0 = 1%).
+            Typical range: 0.5–2.0 for standard risk management.
+        entry_price (float): Planned entry price for the trade.
+        stop_loss_price (float): Planned stop loss price. The distance from entry_price
+            determines risk per unit.
+        equity (Optional[float]): Account equity to use for calculation. If None, fetched
+            automatically from account summary. (default: None)
+
+    Returns:
+        dict: Contains symbol, recommended_volume (float, calculated lots),
+            risk_amount (float, currency amount at risk), risk_percent (float, confirmed %),
+            volume_min/max/step (float, symbol constraints),
+            tick_size/tick_value (float, market data used), and potential error info.
+
+    Example: mt5_calculate_position_size("EURUSD", risk_percent=1.0, entry_price=1.0500, stop_loss_price=1.0450)
+
+    Note: Tick size/value must be available for the symbol — crypto symbols on some brokers
+        may not return tick data (try 'm' variant). The result should be rounded to the
+        nearest volume_step. Always validate with mt5_validate_trade_setup before executing.
+    """
     try:
         from apps.mcp_server.tools_resources import mt5_symbol_info, mt5_account_summary
 
@@ -946,6 +1228,34 @@ def mt5_validate_trade_setup(
     sl: Optional[float] = None,
     tp: Optional[float] = None,
 ) -> dict:
+    """
+    Run comprehensive pre-trade validation checks on a proposed trade setup.
+
+    Pre-flight check before submitting any order. Validates symbol info availability,
+    account margin sufficiency, order book liquidity, and risk parameter sanity.
+    Combines data from symbol_info, account_summary, positions, and order book to
+    assess whether the trade setup is safe to execute.
+
+    Args:
+        symbol (str): Trading symbol to validate (e.g., "EURUSD").
+        side (str): Trade direction — "buy" or "sell".
+        order_kind (str): Order type — typically "market" or "limit"/"stop".
+        volume_lots (float): Proposed volume in lots.
+        entry_price (float): Proposed entry price.
+        sl (Optional[float]): Proposed Stop Loss price. (default: None)
+        tp (Optional[float]): Proposed Take Profit price. (default: None)
+
+    Returns:
+        dict: Validation result from agent_capabilities.validate_trade_setup.
+            Includes fields like valid (bool), reasons (list of issues if invalid),
+            margin_required, margin_available, volume_ok, spread_ok, etc.
+
+    Example: mt5_validate_trade_setup("EURUSD", "buy", "market", 0.1, 1.0500, sl=1.0450)
+
+    Note: This performs LOCAL validation only — the broker's MT5 server may still reject
+        the order (e.g., due to server-side margin rules, trading sessions, or instrument
+        restrictions). Margin estimation requires gateway access; returns 0 if unavailable.
+    """
     try:
         from apps.mcp_server.tools_resources import (
             mt5_symbol_info,
@@ -1023,6 +1333,32 @@ def mt5_trail_position(
     distance_points: float,
     lock_in_points: float = 0,
 ) -> dict:
+    """
+    Activate or update a trailing stop on an open position.
+
+    Dynamically adjusts the stop loss as the market moves in the trade's favor.
+    The trailing stop follows price movement by a fixed distance_points behind the
+    current market price. Optionally locks in a minimum profit with lock_in_points.
+
+    Args:
+        position_id (str): MT5 position ticket number to trail. Must be an open position.
+        distance_points (float): Trail distance in points/pips behind the current
+            market price. Smaller = tighter trail, larger = more breathing room.
+        lock_in_points (float): Minimum locked-in profit in points. Stop loss will
+            never move below this level once reached. 0 = no lock-in. (default: 0)
+
+    Returns:
+        dict: Contains position_id, computed_sl (float, the new SL price applied),
+            result (dict, raw bridge response from the SL update).
+
+    Example: mt5_trail_position("12345678", distance_points=50, lock_in_points=20)
+
+    Note: Trailing state is stored in-memory (_trailing_stops dict with 24h TTL).
+        The stop updates atomically via modify_position_sl_tp. For buy positions,
+        SL = ask - distance. For sell positions, SL = bid + distance.
+        Call periodically (e.g., every bar/minute in a trading loop) to keep
+        the trail active. Does NOT automatically re-trail — requires repeated calls.
+    """
     try:
         frozen = _check_frozen_response()
         if frozen:
@@ -1108,6 +1444,31 @@ def mt5_news_fetch(
     limit: int = 10,
     source: Optional[str] = None,
 ) -> dict:
+    """
+    Fetch recent market news articles from available news providers.
+
+    Retrieves financial news for market-aware analysis. Tries the IG API first,
+    then falls back to the MT5 bridge endpoint. Returns an empty list with
+    a status hint if no news source is available (e.g., behind a firewall).
+
+    Args:
+        limit (int): Maximum number of news articles to return. (default: 10)
+        source (Optional[str]): News provider name. Currently supported: "ig", "reuters",
+            "bloomberg". If None, uses IG API first, then bridge fallback. (default: None)
+
+    Returns:
+        dict: Contains news (list of article dicts with title, body, date, etc.),
+            count (int), source (str, which provider served the data), and on failure:
+            status ("unavailable"), hint (str, troubleshooting suggestion),
+            available_sources (list).
+
+    Example: mt5_news_fetch(limit=5, source="ig")
+
+    Note: Requires network access to the IG API or a configured news provider.
+        If running on a restricted network or VPS without internet on that interface,
+        news will be unavailable and a hint will explain. Consider skipping
+        news-dependent analysis until a source is available.
+    """
     try:
         client = get_http_client()
         params: dict[str, Any] = {"limit": limit}
@@ -1175,6 +1536,32 @@ def mt5_news_enrich(
     content_snippet: str = "",
     source_name: str = "",
 ) -> dict:
+    """
+    Enrich a news item with sentiment analysis, topic extraction, and currency relevance.
+
+    Locally processes a news headline/snippet to extract structured metadata without
+    any network calls. Uses rule-based NLP (no ML model dependency). Useful for
+    categorizing news relevance to currency pairs before making trading decisions.
+
+    Args:
+        title (str): News article headline. This is the primary text analyzed.
+        content_snippet (str): Optional article body or summary text. Concatenated
+            with title for richer analysis. (default: "")
+        source_name (str): Optional source identifier (e.g., "reuters", "bloomberg")
+            for attribution. (default: "")
+
+    Returns:
+        dict: Contains sentiment (str: "positive", "negative", or "neutral"),
+            topics (list of str, extracted topics/keywords),
+            entities (list of extracted named entities),
+            currency_relevance (list of currency pairs this news may affect).
+
+    Example: mt5_news_enrich("ECB raises interest rates by 25bp", "The European Central Bank...")
+
+    Note: Pure local processing — no API costs, no latency. Sentiment is rule-based
+        (not ML), suitable for rapid screening but not nuanced analysis. Works
+        offline and has no external dependencies.
+    """
     from mt5_mcp.services.news_service import (
         _simple_sentiment,
         _extract_topics,
@@ -1208,6 +1595,22 @@ def mt5_news_enrich(
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_news_pools", annotations=_READ_ANNOTATIONS)
 def mt5_news_pools() -> dict:
+    """
+    List available news source pools for the news system.
+
+    Read-only discovery tool that returns the configured news provider names.
+    Use this to check what sources are available before fetching news via mt5_news_fetch.
+
+    Returns:
+        dict: Contains pools (list of str, e.g. ["ig", "reuters", "bloomberg"]),
+            default (str, "ig"), status_hint (str, noting availability depends on network).
+
+    Example: mt5_news_pools()
+
+    Note: These pools are configured but may be unavailable depending on network access
+        and firewall settings. The status_hint field explains the caveat. Use
+        mt5_news_fetch(source=X) to test a specific pool's connectivity.
+    """
     try:
         return {
             "pools": ["ig", "reuters", "bloomberg"],
@@ -1223,6 +1626,27 @@ def mt5_news_pools() -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_economic_calendar", annotations=_READ_ANNOTATIONS)
 def mt5_economic_calendar() -> dict:
+    """
+    Fetch upcoming economic calendar events from available providers.
+
+    Retrieves scheduled economic data releases, central bank meetings, and other
+    market-moving events. Tries the IG API first, then falls back to the MT5 bridge
+    calendar endpoint. Returns an empty list with hint if no source is available.
+
+    Returns:
+        dict: Contains events (list of event dicts with date, currency, impact,
+            description, forecast/previous values), count (int), source (str,
+            which provider served the data). On failure: status ("unavailable"),
+            hint (str, troubleshooting suggestion).
+
+    Example: mt5_economic_calendar()
+
+    Note: Uses MT5's built-in calendar concept via IG API or bridge endpoint.
+        Events include timestamp, currency, impact level, and description.
+        Requires network access. If unavailable, assume potential high-impact
+        events and use wider stops or skip trading during uncertain periods.
+        The hint field provides configuration guidance when sources are down.
+    """
     try:
         client = get_http_client()
         try:

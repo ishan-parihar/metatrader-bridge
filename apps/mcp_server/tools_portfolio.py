@@ -18,6 +18,28 @@ _PORTFOLIO_ANNOTATIONS = ToolAnnotations(
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_portfolio_exposure", annotations=_PORTFOLIO_ANNOTATIONS)
 def mt5_portfolio_exposure() -> dict:
+    """
+    Calculate the current portfolio exposure across all open positions and pending orders.
+
+    Use this before any trade entry to understand your current market exposure. This is a
+    read-only analytical tool that breaks down notional exposure by symbol, including
+    directional bias (long/short) and correlated exposure. Helps identify over-concentration
+    in any single asset or correlated group.
+
+    Args:
+        None
+
+    Returns:
+        dict: Symbol-level exposure breakdown with notional values, directional information,
+              and correlation data. Structure depends on PortfolioRiskService. Key fields:
+              total_exposure_usd, net_exposure_usd, exposure_by_symbol, margin_usage_pct,
+              risk_score, correlation_groups.
+
+    Example: mt5_portfolio_exposure() → {"total_exposure_usd": 15000, "exposure_by_symbol": {...}, "risk_score": 0.35}
+
+    Note: This tool is purely analytical and does not modify any state. Requires MT5
+          connectivity to fetch current positions and orders. Returns error dict on failure.
+    """
     try:
         from .tools_resources import (
             mt5_positions_open,
@@ -47,6 +69,32 @@ def mt5_portfolio_exposure() -> dict:
 def mt5_portfolio_risk(
     symbol: Optional[str] = None, days: int = 7, limit: int = 100
 ) -> dict:
+    """
+    Compute comprehensive portfolio risk metrics including concentration, correlation, and margin usage.
+
+    Use this to assess portfolio-level risk before major trading decisions. Evaluates how
+    concentrated your exposure is in single positions, identifies correlated asset pairs
+    (|correlation| > 0.5), and calculates a composite risk score. Correlated pairs represent
+    assets that move together — when one suffers, the correlated counterpart likely will too,
+    amplifying portfolio drawdown.
+
+    Args:
+        symbol (Optional[str]): If provided, filter risk analysis to this symbol only. (default: None)
+        days (int): Look-back period in days for historical correlation calculation. (default: 7)
+        limit (int): Maximum number of data points per symbol for correlation calculations. (default: 100)
+
+    Returns:
+        dict: Contains "total_exposure_usd", "net_exposure_usd", "exposure_by_symbol" (list with
+              per-symbol breakdown), "risk_metrics" (concentration_ratio, max_single_position_pct,
+              correlated_pairs list of {symbol_a, symbol_b, correlation}), "margin_usage_pct",
+              "risk_score", and "correlation_groups".
+
+    Example: mt5_portfolio_risk() → {"total_exposure_usd": 15000, "risk_metrics": {"concentration_ratio": 0.45, "correlated_pairs": [{"symbol_a": "EURUSD", "symbol_b": "GBPUSD", "correlation": 0.82}]}}
+
+    Note: If no positions are open, returns zero-valued defaults. Higher concentration_ratio
+          (exposure/equity) indicates greater risk concentration. Requires at least two different
+          symbols with positions to identify correlated pairs.
+    """
     try:
         from .tools_resources import (
             mt5_positions_open,
@@ -151,6 +199,27 @@ def mt5_portfolio_risk(
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_pre_trade_gate", annotations=_PORTFOLIO_ANNOTATIONS)
 def mt5_pre_trade_gate(symbol: str, volume_lots: float) -> dict:
+    """
+    Evaluate whether a proposed trade passes portfolio-level risk checks before execution.
+
+    Use this as a pre-flight check before submitting any trade. It validates the proposed
+    trade against current portfolio exposure, concentration limits, and risk policies
+    defined in PortfolioRiskService. This is a read-only analytical gate — no trade is executed.
+
+    Args:
+        symbol (str): The trading symbol to evaluate (e.g., "EURUSD", "GBPUSD", "BTCUSD").
+        volume_lots (float): The proposed trade volume in lots (e.g., 0.1 for a micro lot, 1.0 for a standard lot).
+
+    Returns:
+        dict: Gate check results indicating whether the trade is approved, flagged, or
+              rejected, with reasons and current portfolio context (exposure, concentration).
+
+    Example: mt5_pre_trade_gate(symbol="EURUSD", volume_lots=0.1) → {"approved": true, "reason": "within_limits", "exposure_after": 16500}
+
+    Note: This tool is purely analytical and does NOT execute any trade. Returns error dict
+          if MT5 is unreachable or account data cannot be fetched. Volume must be in lots
+          as used by your broker (not units).
+    """
     try:
         from .tools_resources import mt5_positions_open, mt5_account_summary
         from mt5_mcp.services.portfolio_risk import PortfolioRiskService
@@ -178,6 +247,30 @@ def mt5_pre_trade_gate(symbol: str, volume_lots: float) -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_reconcile", annotations=_PORTFOLIO_ANNOTATIONS)
 def mt5_reconcile(intent_ids: Optional[list[str]] = None) -> dict:
+    """
+    Reconcile trading intents against actual MT5 positions and calculate foreign P&L.
+
+    Use this after trading sessions to verify that all intended trades were executed as
+    expected. Compares the list of intent IDs against real open positions, identifying
+    discrepancies, orphaned positions, and calculating P&L from deals not tracked by intents.
+    Essential for audit trails and monitoring automated trading system fidelity.
+
+    Args:
+        intent_ids (Optional[list[str]]): List of intent IDs to reconcile against open
+                                          positions. Accepts a Python list or a JSON-encoded
+                                          string (auto-parsed). (default: None)
+
+    Returns:
+        dict: Reconciliation results including matched/unmatched positions, foreign positions
+              (those not matching any intent), and "foreign_pnl" — P&L from deals outside
+              tracked intents.
+
+    Example: mt5_reconcile(intent_ids=["int_001", "int_002"]) → {"matched": [...], "unmatched_intents": [], "foreign_pnl": {"total": 45.50}}
+
+    Note: If intent_ids is passed as a string, it will be parsed as JSON automatically.
+          An empty list reconciles against all open positions. Foreign P&L represents
+          profit/loss from positions not attributed to any tracked intent.
+    """
     try:
         from .tools_resources import mt5_positions_open, mt5_deals_history
         from .shared import get_settings_cached
@@ -224,6 +317,33 @@ def mt5_custom_indicator(
     buffer_index: int = 0,
     count: int = 100,
 ) -> dict:
+    """
+    Compute a custom indicator from a compiled .ex5 file installed on the MT5 terminal.
+
+    Use this to run proprietary or third-party indicators installed as .ex5 files in MT5's
+    Indicators folder. For built-in indicators (RSI, MACD, Bollinger Bands, etc.), use
+    mt5_get_indicator instead — it handles built-ins natively without requiring compiled files.
+
+    Args:
+        symbol (str): Trading symbol to compute the indicator on (e.g., "EURUSD", "BTCUSD").
+        timeframe (str): Chart timeframe — one of "M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN". (default: "H1")
+        indicator_name (str): Name of the custom .ex5 indicator file (without the .ex5 extension). (default: "custom")
+        params (Optional[dict]): Optional parameters passed to the indicator as key-value pairs. (default: None)
+        buffer_index (int): Which indicator buffer to read (0-based, typically 0 = main line). (default: 0)
+        count (int): Number of most recent data points to return. Lower = faster. (default: 100)
+
+    Returns:
+        dict: Contains "symbol", "timeframe", "indicator_name", "data" (indicator values),
+              and "status" ("completed" or error). On error, includes structured error info
+              with error code, message, and suggested remediation action.
+
+    Example: mt5_custom_indicator(symbol="EURUSD", indicator_name="MyCustomRSI", timeframe="H1") → {"data": [0.5, 0.6, ...], "status": "completed"}
+
+    Note: Falls back to HTTP bridge if TCP bridge is unavailable. Common errors include:
+          "INDICATOR_NOT_FOUND" (.ex5 file missing from MQL5/Indicators/),
+          "INDICATOR_LOAD_FAILED" (use mt5_get_indicator for built-ins instead), and
+          "INVALID_PARAMETER" (check parameter types/ranges). Timeout is 20 seconds.
+    """
     try:
         from mt5_mcp.adapters.common.symbol_utils import (
             normalize_symbol,

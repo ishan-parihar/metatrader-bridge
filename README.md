@@ -19,35 +19,44 @@ The SKILL.md contains everything an AI trading agent needs:
 ## Architecture
 
 ```
-                                        ┌─────────────┐
-                                        │  AI Agent   │
-                                        │  (MCP/Hermes)│
-                                        └──────┬──────┘
-                                               │ MCP (:8010)
-                                               ▼
-┌──────────────────────────────────────────────────────────┐
-│              Combined TradeBridge (1 container)           │
-│                                                          │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ MCP Server │  │ HTTP Gateway │  │  TCP Bridge      │  │
-│  │ (:8010)    │  │ (:8020)      │  │  (:8025)         │  │
-│  └────────────┘  └──────────────┘  └─────────┬────────┘  │
-└──────────────────────────────────────────────┼───────────┘
-                                               │ TCP (:8025)
-                                               ▼
-                        ┌──────────────────────────────┐
-                        │   MT5 Terminal (1 container) │
-                        │   WineHQ 11 + Xvfb + EA     │
-                        │   ~210 MB RSS               │
-                        └──────────────────────────────┘
+                                         ┌─────────────┐
+                                         │  AI Agent   │
+                                         │  (MCP/Hermes)│
+                                         └──────┬──────┘
+                                                │ MCP + REST (:8010)
+                                                ▼
+                              ┌──────────────────────────────────────┐
+                              │        TradeBridge (1 process)        │
+                              │                                      │
+                              │  HTTP/MCP Server (:8010)             │
+                              │  ├── FastMCP SSE (/mcp)              │
+                              │  ├── REST tools (/tools/*)           │
+                              │  ├── Gateway routes (/bridge/*)      │
+                              │  ├── TCP bridge status               │
+                              │  │   (/tcp-bridge/status)            │
+                              │  ├── Health (/health)                │
+                              │  └── Metrics (/metrics)              │
+                              │                                      │
+                              │  TCP Bridge (:8025)                  │
+                              │  └── Persistent EA connection        │
+                              └──────────────┬───────────────────────┘
+                                             │ TCP (:8025)
+                                             ▼
+                         ┌──────────────────────────────┐
+                         │   MT5 Terminal (1 container) │
+                         │   WineHQ 11 + Xvfb + EA     │
+                         │   ~210 MB RSS               │
+                         └──────────────────────────────┘
 ```
 
-**Latency:** ~15-25ms end-to-end via TCP (~600ms HTTP fallback)
+**Latency:** ~15-25ms end-to-end via in-process bridge (no network hop between services)
 
 **Key Design:**
 - **Linux-Compatible**: MQL5 EA bridge (no Python MT5 module)
+- **Unified Process**: Single Python process serves all HTTP + MCP + TCP ports
+- **In-Process Bridge**: TCP bridge embedded in MCP server — zero network overhead for tool calls
 - **TCP Push Model**: Persistent TCP connection, instant command delivery
-- **HTTP Fallback**: Automatic if TCP unavailable
+- **HTTP Fallback**: Automatic if TCP unavailable (via HTTP Gateway routes on same :8010)
 - **Demo-First**: Execution tools gated for demo accounts in R&D mode
 
 ## Quick Start — Docker (Recommended)
@@ -94,7 +103,7 @@ docker logs mt5-terminal --tail 20 -f
 
 | Service | RSS | Container | Purpose |
 |---------|-----|-----------|---------|
-| TradeBridge (combined) | **64 MB** | 1 container | MCP + HTTP + TCP bridge |
+| TradeBridge | **64 MB** | 1 container | HTTP/MCP (:8010) + TCP bridge (:8025) |
 | MT5 Terminal | **210 MB** | 1 container | WineHQ 11 + Xvfb + MT5 EA |
 | Redis | **9 MB** | 1 container | Message queue / cache |
 | **Total** | **~283 MB** | **3 containers** | |
@@ -126,13 +135,14 @@ git clone https://github.com/ishanp321/TradeBridge.git
 cd TradeBridge
 poetry install
 
-# Start services (3 separate processes):
-poetry run python -m apps.tcp_bridge.main           # TCP Bridge (port 8025)
-poetry run uvicorn apps.bridge_gateway.main:app --host 127.0.0.1 --port 8020  # Gateway
-poetry run uvicorn apps.mcp_server.main:app --host 127.0.0.1 --port 8010      # MCP Server
-
-# Or unified (single process, ~76 MB):
+# Single unified process (all services on ports 8010 + 8025):
 poetry run python -m apps.bridge.main
+
+# Or install as systemd service:
+sudo cp deploy/systemd/tradebridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable tradebridge.service
+sudo systemctl start tradebridge.service
 ```
 
 ### EA Setup (for Bottles/Wine)
@@ -147,10 +157,10 @@ poetry run python -m apps.bridge.main
 ```
 TradeBridge/
 ├── apps/
-│   ├── bridge/main.py              # Combined: TCP + Gateway + MCP (1 process)
-│   ├── mcp_server/main.py          # MCP server (port 8010) — ALL tool endpoints
-│   ├── bridge_gateway/main.py      # Bridge gateway (port 8020)
-│   └── tcp_bridge/main.py          # TCP bridge (port 8025)
+│   ├── bridge/main.py              # Entry point: TCP bridge + HTTP/MCP (1 process)
+│   ├── mcp_server/main.py          # MCP server (:8010) — FastMCP + REST + gateway
+│   ├── bridge_gateway/             # Shared gateway routes mounted into :8010
+│   └── tcp_bridge/                 # TCP bridge (:8025) — embedded in entry point
 ├── ea/BridgeConnectorEA.mq5        # MQL5 EA for MT5
 ├── src/mt5_mcp/
 │   ├── schemas/                    # Pydantic models
@@ -175,21 +185,18 @@ TradeBridge/
 ```bash
 # Build targets
 docker build --target combined-target     -t tradebridge:latest .    # All-in-one (recommended)
-docker build --target tcp-bridge-target   -t tradebridge-tcp:latest .
-docker build --target http-gateway-target -t tradebridge-gateway:latest .
 docker build --target mcp-server-target   -t tradebridge-mcp:latest .
 docker build -f deploy/mt5-terminal/Dockerfile -t mt5-terminal:latest .
 
 # Configuration via environment variables
-export MT5_MCP_PORT=8010          # MCP server port
-export MT5_GATEWAY_PORT=8020      # Bridge gateway port
+export MT5_MCP_PORT=8010          # HTTP/MCP server port
 export MT5_TCP_BRIDGE_PORT=8025    # TCP bridge port
 export MT5_REDIS_URL=redis://redis:6379/0  # Redis connection
 ```
 
 ## API Reference
 
-The combined container exposes **96+ REST endpoints** across categories:
+The service exposes **96+ endpoints** (REST + MCP) across categories:
 
 | Category | Examples | Requires MT5 |
 |----------|----------|-------------|
@@ -205,19 +212,18 @@ The combined container exposes **96+ REST endpoints** across categories:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MT5_GATEWAY_URL` | `http://127.0.0.1:8020` | Bridge gateway endpoint |
+| `MT5_GATEWAY_URL` | `http://127.0.0.1:8010` | Gateway endpoint (same process, port 8010) |
 | `MT5_REDIS_URL` | - | Redis (optional, falls back to in-memory) |
-| `MT5_MCP_HOST` | `0.0.0.0` | MCP server bind address |
-| `MT5_GATEWAY_HOST` | `0.0.0.0` | Gateway bind address |
-| `MT5_TCP_BRIDGE_HOST` | `0.0.0.0` | TCP bridge bind address |
+| `MT5_MCP_HOST` | `0.0.0.0` | HTTP/MCP server bind address (:8010) |
+| `MT5_TCP_BRIDGE_HOST` | `0.0.0.0` | TCP bridge bind address (:8025) |
 | `MT5_TCP_BRIDGE_PORT` | `8025` | TCP bridge port |
 
 ## Monitoring
 
 ```bash
 # Health checks
-curl http://localhost:8010/health                          # Combined service
-curl http://localhost:8020/bridge/health                    # Gateway (GET)
+curl http://localhost:8010/health                          # Full service health
+curl http://localhost:8010/tcp-bridge/status                # TCP bridge status
 
 # Docker container stats
 docker stats --no-stream mt5-combined mt5-terminal mt5-redis
@@ -236,7 +242,7 @@ curl http://localhost:8010/health
 
 ## Security
 
-- Python services bind to `127.0.0.1` on systemd, `0.0.0.0` in Docker
+- HTTP/MCP service (:8010) binds to `127.0.0.1` on systemd, `0.0.0.0` in Docker
 - MT5 terminal uses `seccomp:unconfined` (required for Wine socket operations)
 - Execution tools gated for demo accounts in R&D mode
 - Optional `MT5_COMMAND_SECRET` for command authorization

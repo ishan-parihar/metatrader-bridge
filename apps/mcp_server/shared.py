@@ -33,6 +33,37 @@ _settings: Any | None = None
 _TCP_BRIDGE_ENABLED = os.getenv("MT5_TCP_BRIDGE_ENABLED", "true").lower() == "true"
 
 # ---------------------------------------------------------------------------
+# In-process TCP Bridge Server (embedded mode)
+# When set, _tcp_send_and_await calls enqueue_and_await() directly
+# instead of going through TCPBridgeClient on port 8026.
+# Set by apps/bridge/main.py before starting uvicorn.
+# ---------------------------------------------------------------------------
+
+_bridge_server: Any | None = None
+_bridge_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_bridge_server(
+    server: Any, loop: asyncio.AbstractEventLoop | None = None
+) -> None:
+    global _bridge_server, _bridge_loop
+    _bridge_server = server
+    _bridge_loop = loop or asyncio.get_event_loop()
+    if server is not None:
+        logger.info(
+            f"TCP bridge server wired for in-process calls "
+            f"(EA connected: {getattr(server, 'ea_connected', False)})"
+        )
+
+
+def is_bridge_connected() -> bool:
+    """Check if the in-process bridge server has an active EA connection."""
+    if _bridge_server is None:
+        return False
+    return bool(getattr(_bridge_server, "ea_connected", False))
+
+
+# ---------------------------------------------------------------------------
 # Shared indicator defaults — single source of truth.
 # All tool modules should import this instead of maintaining local copies.
 # ---------------------------------------------------------------------------
@@ -209,6 +240,30 @@ def _tcp_send_and_await(
 ) -> dict[str, Any] | None:
     if not _TCP_BRIDGE_ENABLED:
         return None
+
+    # Fast path: in-process bridge server (no network hop, no event loop creation)
+    if _bridge_server is not None and _bridge_loop is not None:
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                _bridge_server.enqueue_and_await(type, payload, timeout=timeout_s),
+                _bridge_loop,
+            )
+            result = future.result(timeout=timeout_s + 5.0)
+            inner = result.get("payload", result)
+            return {"status": "completed", "result": {"payload": inner}}
+        except ConnectionError:
+            logger.debug(f"_tcp_send_and_await({type}): EA not connected via bridge")
+            return None
+        except TimeoutError as e:
+            logger.warning(
+                f"_tcp_send_and_await({type}): bridge timeout after {timeout_s}s — {e}"
+            )
+            return None
+        except Exception as e:
+            logger.warning(f"_tcp_send_and_await({type}): bridge failed — {e}")
+            return None
+
+    # Legacy path: TCPBridgeClient on background thread (separate process mode)
     try:
         client = _get_tcp_client()
         if client is None:
@@ -234,6 +289,46 @@ def _tcp_send_and_await(
 def _batch_enqueue_and_await(
     commands: list[dict[str, Any]], timeout_s: float = 20.0
 ) -> list[dict]:
+    # Fast path: in-process bridge server (no network hop, no event loop creation)
+    if _bridge_server is not None and _bridge_loop is not None:
+
+        async def _run_all_bridge():
+            results = [None] * len(commands)
+            tasks = []
+            for i, cmd in enumerate(commands):
+                task = asyncio.create_task(
+                    _bridge_server.enqueue_and_await(
+                        type=cmd["type"],
+                        payload={k: v for k, v in cmd.items() if k != "type"},
+                        timeout=timeout_s,
+                    )
+                )
+                tasks.append((i, task))
+            for i, task in tasks:
+                try:
+                    r = await task
+                    results[i] = {
+                        "status": "completed",
+                        "result": {"payload": r.get("payload", r)},
+                    }
+                except ConnectionError:
+                    results[i] = None
+                except TimeoutError:
+                    results[i] = {"status": "timeout", "error": "timeout"}
+                except Exception as e:
+                    results[i] = {"status": "error", "error": str(e)}
+            return results
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                _run_all_bridge(), _bridge_loop
+            )
+            results = future.result(timeout=timeout_s + 10.0)
+            if all(r is not None for r in results):
+                return results
+        except Exception:
+            pass
+
     tcp_ok = False
     if _TCP_BRIDGE_ENABLED:
         try:

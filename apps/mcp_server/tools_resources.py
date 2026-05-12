@@ -28,6 +28,27 @@ _READ_ANNOTATIONS = ToolAnnotations(
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_terminal_status", annotations=_READ_ANNOTATIONS)
 def mt5_terminal_status() -> dict:
+    """Check whether the MT5 terminal is connected and responsive.
+
+    Use this before any trading operation to confirm the bridge is alive. If
+    the terminal is disconnected, all other tools will return empty or error
+    responses — this is the first tool to call in any trading cycle.
+
+    Args:
+        None
+
+    Returns:
+        dict: Terminal connection state with keys:
+            - connected (bool): Whether MT5 terminal is reachable
+            - server (str, optional): Connected server name
+            - company (str, optional): Broker company name
+            - error (str, present on failure): Error description
+
+    Example: mt5_terminal_status()
+
+    Note: This is a LIVE check — always reflects current state. Does not
+    require an active account session to succeed.
+    """
     try:
         result = get_gateway().terminal_status()
         return result.model_dump() if hasattr(result, "model_dump") else dict(result)
@@ -40,6 +61,37 @@ def mt5_terminal_status() -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_account_summary", annotations=_READ_ANNOTATIONS)
 def mt5_account_summary() -> dict:
+    """Retrieve the current MT5 account summary including balance, equity, margin, and leverage.
+
+    Use this to assess account health before placing trades — check free margin,
+    margin level, and whether the account is allowed to trade. Call periodically
+    during a trading session to monitor equity drawdown.
+
+    Args:
+        None
+
+    Returns:
+        dict: Contains two top-level keys:
+            - account (dict): Account info with keys:
+                - account_id (int): MT5 account number
+                - balance (float): Current account balance
+                - equity (float): Current equity (balance +/- floating P&L)
+                - margin (float): Used margin
+                - free_margin (float): Available margin
+                - margin_level (float): Margin level percentage
+                - leverage (int): Account leverage
+                - currency (str): Account base currency
+                - trade_allowed (bool): Whether trading is enabled
+                - name (str, optional): Account holder name
+                - server (str, optional): Connected server name
+            - snapshot_metadata (dict): Timestamp and freshness info
+        On complete failure: {"error": "account_summary_unavailable"}
+
+    Example: mt5_account_summary()
+
+    Note: LIVE data fetched directly from MT5 via gateway adapter with TCP
+    bridge fallback. Check snapshot_metadata.data_freshness for source.
+    """
     # Path 1: Gateway adapter
     try:
         summary = get_gateway().account_summary()
@@ -83,6 +135,47 @@ def mt5_account_summary() -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_symbol_info", annotations=_READ_ANNOTATIONS)
 def mt5_symbol_info(symbol: str) -> dict:
+    """Get detailed specification and market data for a single trading symbol.
+
+    Use this to check symbol properties before trading: point size, tick value,
+    minimum volume, lot step, spread, swap rates, session times, and price
+    filters. Essential for position sizing calculations and trade validation.
+
+    Args:
+        symbol (str): Trading symbol (e.g. "EURUSD", "GBPJPY", "XAUUSD").
+            Case-insensitive; will be normalized automatically.
+
+    Returns:
+        dict: Symbol specification with keys including:
+            - symbol (str): Normalized symbol name
+            - point (float): Point value (smallest price change)
+            - digits (int): Number of decimal places
+            - tick_value (float): Value of one tick in deposit currency
+            - tick_size (float): Minimum price step
+            - trade_mode (int): 0=disabled, 1=long only, 2=short only, 3=both
+            - spread (int): Current spread in points
+            - spread_float (bool): Whether spread is floating
+            - swap_long (float): Long position swap (points)
+            - swap_short (float): Short position swap (points)
+            - swap_type (int): Swap calculation method
+            - trade_calc_mode (int): Profit/margin calculation mode
+            - margin_initial (float): Initial margin required
+            - margin_maintenance (float): Maintenance margin
+            - volume_min (float): Minimum trade volume (lots)
+            - volume_max (float): Maximum trade volume (lots)
+            - volume_step (float): Lot size step
+            - session_* (dict): Trading session rules
+            - starting (str): Symbol start date
+            - expiration (str, optional): Symbol expiration/expiry
+            - description (str, optional): Human-readable description
+            - error (str, present on failure): Error description
+
+    Example: mt5_symbol_info(symbol="EURUSD")
+
+    Note: LIVE data from MT5 gateway adapter with TCP bridge fallback. Returns
+    {"error": "symbol_info_unavailable", "symbol": symbol} if symbol is invalid
+    or data cannot be retrieved.
+    """
     try:
         from mt5_mcp.adapters.common.symbol_utils import (
             denormalize_symbol,
@@ -118,6 +211,41 @@ def mt5_symbol_info(symbol: str) -> dict:
 def mt5_deals_history(
     limit: int = 100, symbol: Optional[str] = None, days: int = 30
 ) -> dict:
+    """Retrieve historical closed deals from MT5 for performance analysis.
+
+    Use this to review filled orders, calculate win/loss ratios, and analyze
+    trading history over a specified lookback period. Combines with
+    mt5_performance_summary for deeper analytics.
+
+    Args:
+        limit (int): Maximum number of deals to return (default: 100,
+            range: 1-10000). Higher values increase response time.
+        symbol (Optional[str]): Filter by trading symbol (e.g. "EURUSD").
+            None returns deals for all symbols. (default: None)
+        days (int): Lookback period in days (default: 30, range: 1-365).
+
+    Returns:
+        dict: Contains a single key:
+            - deals (list): Array of deal dicts, each with:
+                - deal_id (int): MT5 deal identifier
+                - order_id (int): Originating order ID
+                - symbol (str): Trading symbol
+                - side (str): "buy" or "sell"
+                - volume (float): Deal volume in lots
+                - price (float): Execution price
+                - profit (float): Deal profit/loss in account currency
+                - commission (float): Commission charged
+                - swap (float): Swap/rollover charged
+                - time (str): Deal execution time (ISO format)
+                - comment (str, optional): Deal comment
+                - entry (str): "entry", "exit", or "reverse"
+
+    Example: mt5_deals_history(limit=50, symbol="EURUSD", days=7)
+
+    Note: LIVE data fetched from MT5 gateway adapter with TCP bridge fallback.
+    Returns {"deals": []} if no deals found or connection fails. Deals include
+    both entry and exit records for closed positions.
+    """
     try:
         deals = get_gateway().adapter.get_deals_history(
             limit=limit, symbol=symbol, days=days
@@ -156,6 +284,44 @@ def mt5_deals_history(
 def mt5_performance_summary(
     limit: int = 100, symbol: Optional[str] = None, days: int = 30
 ) -> dict:
+    """Compute aggregated performance metrics from historical deal data.
+
+    Use this after mt5_deals_history to get summarized stats: win rate, profit
+    factor, average win/loss, Sharpe-like ratio, and symbol-level breakdowns.
+    Helps the agent evaluate strategy effectiveness without manual calculations.
+
+    Args:
+        limit (int): Maximum number of deals to analyze (default: 100,
+            range: 1-10000). Affects statistical significance.
+        symbol (Optional[str]): Filter to a single symbol (e.g. "EURUSD").
+            None includes all symbols. (default: None)
+        days (int): Lookback period in days (default: 30, range: 1-365).
+
+    Returns:
+        dict: Performance summary with keys:
+            - total_deals (int): Number of deals analyzed
+            - total_profit (float): Net profit/loss
+            - total_commission (float): Total commission paid
+            - total_swap (float): Total swap charged
+            - win_count (int): Number of winning deals
+            - loss_count (int): Number of losing deals
+            - win_rate (float): Win rate as decimal (0.0-1.0)
+            - profit_factor (float): Gross profit / gross loss
+            - avg_win (float): Average winning deal profit
+            - avg_loss (float): Average losing deal profit (negative)
+            - largest_win (float): Largest single deal profit
+            - largest_loss (float): Largest single deal loss
+            - avg_bars_held (float): Average hold time in bars
+            - sharpe_ratio (float, optional): Risk-adjusted return metric
+            - symbol_breakdown (dict, optional): Per-symbol performance
+            - error (str, present on failure): Error description
+
+    Example: mt5_performance_summary(days=90, symbol="EURUSD")
+
+    Note: LIVE computation from MT5 deal history via gateway adapter with TCP
+    bridge fallback. Performance is based on closed deals only — open positions
+    are not included. Empty history returns default zero-value metrics.
+    """
     try:
         from mt5_mcp.services.agent_capabilities import summarize_deals
 
@@ -398,34 +564,92 @@ def _enrich_positions_with_health(positions: list[dict]) -> list[dict]:
 
     return positions
 
-
 @mcp.tool(name="mt5_positions_open", annotations=_READ_ANNOTATIONS)
 def mt5_positions_open() -> dict:
-    try:
-        positions = get_gateway().adapter.get_positions()
-        if positions:
-            position_dicts = [
-                p.model_dump() if hasattr(p, "model_dump") else dict(p)
-                for p in positions
-            ]
-            _enrich_positions_with_health(position_dicts)
-            return {
-                "positions": position_dicts,
-                "sync_status": {
-                    "positions_count": len(position_dicts),
-                    "last_sync_age_ms": 0,
-                    "retry_count": 0,
-                    "stale_warning": False,
-                },
-                "snapshot_metadata": {
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
-                    "next_recommended_check_seconds": 600,
-                    "data_freshness": "live",
-                },
-            }
-    except Exception as e:
-        logger.warning(f"mt5_positions_open: gateway adapter failed — {e}")
+    """List all currently open positions with computed health metrics.
 
+    Use this to monitor active trades, check unrealized P&L, assess position
+    health (distance to SL/TP, time in trade, trailing eligibility), and
+    decide whether to modify, close, or hold each position. Each position
+    includes a health assessment with actionable recommendations.
+
+    Args:
+        None
+
+    Returns:
+        dict: Contains three top-level keys:
+            - positions (list): Array of open position dicts, each with:
+                - position_id (int): MT5 position ticket
+                - symbol (str): Trading symbol
+                - side (str): "buy" or "sell"
+                - volume (float): Volume in lots
+                - entry_price (float): Position entry price
+                - mark_price (float): Current market price
+                - profit (float): Unrealized P&L in account currency
+                - sl (float, optional): Stop loss price
+                - tp (float, optional): Take profit price
+                - time (int): Open time as Unix timestamp
+                - comment (str, optional): Position comment
+                - health (dict): Computed metrics:
+                    - distance_to_sl_pips (float, optional): Pips to stop loss
+                    - distance_to_tp_pips (float, optional): Pips to take profit
+                    - pnl_percent_of_risk (float, optional): P&L as % of initial risk
+                    - time_in_trade_minutes (int, optional): Age in minutes
+                    - is_winning (bool, optional): Whether position is in profit
+                    - is_at_breakeven (bool, optional): P&L within 0.5x spread
+                    - trail_eligible (bool, optional): Profit > 2x spread
+                    - action_required (str): Suggested action: "none",
+                      "stale_position", "time_exit_approaching",
+                      "invalidation_check", "trail_to_breakeven",
+                      "trail_stop_closer"
+                    - action_reason (str): Human-readable explanation
+            - sync_status (dict): Caching and retry metadata
+            - snapshot_metadata (dict): Timestamp and data freshness info
+
+    Example: mt5_positions_open()
+
+    Note: LIVE data from MT5 gateway adapter with up to 3 retry attempts and
+    TCP bridge fallback. Health computation requires symbol info (may add
+    latency for multi-symbol portfolios). Empty array means no open positions.
+    """
+    # Retry loop: try gateway adapter up to 3 times with 0.5s delay
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            positions = get_gateway().adapter.get_positions()
+            if positions:
+                position_dicts = [
+                    p.model_dump() if hasattr(p, "model_dump") else dict(p)
+                    for p in positions
+                ]
+                _enrich_positions_with_health(position_dicts)
+                return {
+                    "positions": position_dicts,
+                    "sync_status": {
+                        "positions_count": len(position_dicts),
+                        "last_sync_age_ms": 0,
+                        "retry_count": attempt,
+                        "stale_warning": False,
+                    },
+                    "snapshot_metadata": {
+                        "captured_at": datetime.now(timezone.utc).isoformat(),
+                        "next_recommended_check_seconds": 600,
+                        "data_freshness": "live",
+                    },
+                }
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                f"mt5_positions_open: gateway adapter attempt {attempt + 1}/3 failed — {e}"
+            )
+            time.sleep(0.5)
+
+    # All attempts exhausted — log the last error
+    logger.warning(
+        f"mt5_positions_open: gateway adapter failed after 3 attempts — {last_error}"
+    )
+
+    # Fallback: TCP bridge
     try:
         tcp_result = _tcp_send_and_await("get_positions", {}, timeout_s=10.0)
         data = _parse_payload_dict(tcp_result)
@@ -470,6 +694,38 @@ def mt5_positions_open() -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_orders_pending", annotations=_READ_ANNOTATIONS)
 def mt5_orders_pending() -> dict:
+    """List all pending orders (limit/stop orders not yet executed).
+
+    Use this to review orders waiting to be filled — check their type, price
+    level, expiry, and distance from current market price. Essential before
+    placing new orders to avoid duplicates and after cancelling orders to
+    confirm removal.
+
+    Args:
+        None
+
+    Returns:
+        dict: Contains one key:
+            - orders (list): Array of pending order dicts, each with:
+                - order_id (int): MT5 order ticket
+                - symbol (str): Trading symbol
+                - type (str): Order type ("buy_limit", "sell_limit",
+                  "buy_stop", "sell_stop")
+                - volume (float): Order volume in lots
+                - price (float): Order trigger/limit price
+                - sl (float, optional): Stop loss price
+                - tp (float, optional): Take profit price
+                - time_setup (int): Order creation time (Unix timestamp)
+                - time_expiration (int, optional): Order expiry time
+                - comment (str, optional): Order comment
+            - snapshot_metadata (dict): Timestamp and freshness info
+
+    Example: mt5_orders_pending()
+
+    Note: LIVE data from MT5 gateway adapter with TCP bridge fallback. Empty
+    array means no pending orders. Recommend rechecking every 120 seconds
+    (see snapshot_metadata.next_recommended_check_seconds).
+    """
     try:
         orders = get_gateway().adapter.get_orders()
         if orders:
@@ -517,6 +773,31 @@ def mt5_orders_pending() -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool(name="mt5_bridge_status", annotations=_READ_ANNOTATIONS)
 def mt5_bridge_status() -> dict:
+    """Check the health and connectivity of the TCP bridge to the MT5 terminal.
+
+    Use this to diagnose connection issues when other tools return errors. If
+    the bridge is disconnected, check that the MT5 terminal is running, the
+    EA is attached to a chart, and TCP bridge settings are correct.
+
+    Args:
+        None
+
+    Returns:
+        dict: Bridge status with keys:
+            - connected (bool): Whether TCP bridge is connected to MT5 terminal
+            - terminal_build (int, optional): MT5 build number
+            - terminal_version (str, optional): MT5 version string
+            - bridge_uptime (float, optional): Bridge uptime in seconds
+            - ea_connected (bool, optional): Whether EA is connected to bridge
+            - message (str): Status description
+            - error (str, present on failure): Error description
+
+    Example: mt5_bridge_status()
+
+    Note: LIVE check against the HTTP gateway endpoint. Returns
+    {"connected": False} with error details if the HTTP check fails. This is a
+    critical diagnostic tool — call before escalation.
+    """
     try:
         client = get_http_client()
         r = client.get(f"{get_settings_cached().gateway_url}/bridge/terminal/status")

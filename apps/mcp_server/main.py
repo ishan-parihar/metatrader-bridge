@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Body
 from pydantic import BaseModel
 from typing import Any, Literal
 import httpx
@@ -147,6 +147,12 @@ except Exception as e:
     logging.getLogger("mt5_mcp.observability.logging").warning(
         f"Failed to mount MCP SSE app: {e}",
     )
+
+# Include shared gateway routes (bridge/commands, bridge/heartbeat, bridge/results,
+# vibe endpoints, metrics) so they are all served on the same port 8010.
+from apps.bridge_gateway.router import router as gateway_router
+
+app.include_router(gateway_router)
 
 
 @app.middleware("http")
@@ -725,6 +731,20 @@ def resource_orders_pending() -> dict:
     }
 
 
+@app.get("/tcp-bridge/status")
+def tcp_bridge_status() -> dict:
+    """TCP bridge server status (EA connection, pending commands)."""
+    from apps.mcp_server.shared import _bridge_server
+
+    if _bridge_server is None:
+        return {"ea_connected": False, "ea_address": "", "pending_commands": 0}
+    return {
+        "ea_connected": _bridge_server.ea_connected,
+        "ea_address": getattr(_bridge_server, "_ea_address", ""),
+        "pending_commands": _bridge_server.pending_count,
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     """Enhanced health check with subsystem aggregation."""
@@ -752,14 +772,19 @@ def health() -> dict:
     except Exception as e:
         issues.append(f"Bridge status check failed: {e}")
 
-    # Check TCP bridge
+    # Check TCP bridge (in-process or separate)
     tcp_connected = False
     if _TCP_BRIDGE_ENABLED:
         try:
-            tcp_client = _get_tcp_client()
-            tcp_connected = tcp_client is not None and getattr(
-                tcp_client, "is_connected", False
-            )
+            from apps.mcp_server.shared import is_bridge_connected as _bridge_ok
+
+            if _bridge_ok():
+                tcp_connected = True
+            else:
+                tcp_client = _get_tcp_client()
+                tcp_connected = tcp_client is not None and getattr(
+                    tcp_client, "is_connected", False
+                )
         except Exception as e:
             tcp_connected = False
             issues.append(f"TCP bridge unavailable: {e}")
@@ -965,139 +990,7 @@ def _await_result(req_id: str, timeout_s: float = 20.0, poll_s: float = 0.1) -> 
     return {"status": "timeout", "error": "timeout"}
 
 
-def _tcp_send_and_await(
-    type: str, payload: dict[str, Any], timeout_s: float = 20.0
-) -> dict[str, Any] | None:
-    """Send command via TCP bridge and await response.
-
-    Connects lazily on first call, then reuses persistent connection.
-    Falls back to None if TCP bridge unavailable.
-    """
-    if not _TCP_BRIDGE_ENABLED:
-        return None
-    try:
-        client = _get_tcp_client()
-        if client is None:
-            return None
-
-        # Lazy connect on first use
-        if not client.is_connected:
-            import asyncio
-
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(client.connect())
-            except Exception:
-                return None
-            finally:
-                loop.close()
-
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(
-                client.send_command(type, payload, timeout=timeout_s)
-            )
-            inner = result.get("payload", result)
-            return {"status": "completed", "result": {"payload": inner}}
-        except Exception:
-            return None
-        finally:
-            loop.close()
-    except Exception:
-        return None
-
-
-def _batch_enqueue_and_await(
-    commands: list[dict[str, Any]], timeout_s: float = 20.0
-) -> list[dict]:
-    """Enqueue multiple bridge commands and await all results."""
-    tcp_ok = False
-    if _TCP_BRIDGE_ENABLED:
-        try:
-            from mt5_mcp.services.tcp_bridge_client import TCPBridgeClient
-            import asyncio
-
-            tcp_client = TCPBridgeClient()
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(tcp_client.connect())
-
-                async def _run_all():
-                    results = [None] * len(commands)
-                    tasks = []
-                    for i, cmd in enumerate(commands):
-                        task = asyncio.create_task(
-                            tcp_client.send_command(
-                                type=cmd["type"],
-                                payload={k: v for k, v in cmd.items() if k != "type"},
-                                timeout=timeout_s,
-                            )
-                        )
-                        tasks.append((i, task))
-                    for i, task in tasks:
-                        try:
-                            result = await asyncio.wait_for(task, timeout=timeout_s)
-                            inner = result.get("payload", result)
-                            results[i] = {
-                                "status": "completed",
-                                "result": {"payload": inner},
-                            }
-                        except asyncio.TimeoutError:
-                            results[i] = {"status": "timeout", "error": "timeout"}
-                        except Exception as e:
-                            results[i] = {"status": "error", "error": str(e)}
-                    return results
-
-                results = loop.run_until_complete(_run_all())
-                tcp_ok = True
-                return results
-            finally:
-                loop.run_until_complete(tcp_client.close())
-                loop.close()
-        except Exception:
-            pass
-
-    if tcp_ok:
-        return []
-
-    import time as _t
-
-    gw_url = get_settings_cached().gateway_url
-    client = get_http_client()
-
-    # Enqueue all commands
-    req_ids = []
-    for cmd in commands:
-        r = client.post(
-            f"{gw_url}/bridge/commands/enqueue",
-            params=cmd,
-        )
-        r.raise_for_status()
-        req_ids.append(r.json()["id"])
-
-    # Poll all results together
-    end = _t.time() + timeout_s
-    results = [None] * len(req_ids)
-    while _t.time() < end and any(r is None for r in results):
-        for i, req_id in enumerate(req_ids):
-            if results[i] is not None:
-                continue
-            r = client.get(f"{gw_url}/bridge/results/{req_id}")
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("status") in {"completed", "error"}:
-                    results[i] = data
-        if any(r is None for r in results):
-            _t.sleep(0.1)
-
-    # Fill timeouts for any remaining
-    for i, r in enumerate(results):
-        if r is None:
-            results[i] = {"status": "timeout", "error": "timeout"}
-
-    return results
+from apps.mcp_server.shared import _tcp_send_and_await, _batch_enqueue_and_await
 
 
 def _map_trade_retcode(rc: int | str | None) -> str | None:
@@ -3960,7 +3853,7 @@ def tool_set_trailing_stop(req: SetTrailingStopRequest) -> TrailingStopResult:
 
 
 @app.post("/tools/trailing_stop/cancel", response_model=dict)
-def tool_trailing_stop_cancel(position_id: str) -> dict:
+def tool_trailing_stop_cancel(position_id: str = Body(..., embed=True)) -> dict:
     """Cancel an active trailing stop."""
     if position_id in _trailing_stops:
         _trailing_stops[position_id]["active"] = False
@@ -4459,7 +4352,7 @@ def tool_reflect_on_trades(req: TradeJournalReflectionRequest) -> dict:
 
 
 @app.post("/tools/trading/insights")
-def tool_trading_insights(lookback_days: int = 7) -> dict:
+def tool_trading_insights(lookback_days: int = Body(7, embed=True)) -> dict:
     try:
         try:
             journal = get_journal_db()
@@ -5339,8 +5232,8 @@ async def tool_wait_delay(req: WaitDelayRequest) -> WaitDelayResult:
     logger = logging.getLogger("mt5_mcp.wait_delay")
 
     # Validate duration (BUG-001/BUG-007 fix)
-    if req.duration_seconds < 1:
-        raise ValueError("duration_seconds must be at least 1")
+    if req.duration_seconds < 0:
+        raise ValueError("duration_seconds must be at least 0")
     if req.duration_seconds > 3600:
         raise ValueError("duration_seconds must not exceed 3600 (1 hour)")
 
@@ -5948,13 +5841,19 @@ def tool_news_fetch(req: NewsFetchRequest) -> dict:
     return result
 
 
+class NewsEnrichRequest(BaseModel):
+    items: list[dict] = []
+    extract: list[str] = ["sentiment", "topics", "entities", "currency_relevance"]
+
+
 @app.post("/tools/news/enrich", response_model=dict)
-def tool_news_enrich(req: dict) -> dict:
+def tool_news_enrich(req: NewsEnrichRequest) -> dict:
     """Add sentiment analysis, topics, entities, and currency relevance to news items.
 
     Pass items from news.fetch in the request body.
     """
-    items = req.get("items", [])
+    items = req.items
+    extract = req.extract
     extract = req.get(
         "extract", ["sentiment", "topics", "entities", "currency_relevance"]
     )
@@ -6635,3 +6534,19 @@ def tool_data_stats() -> dict:
     if store is None:
         return {"error": "Data store unavailable"}
     return store.get_stats()
+
+
+# ============================================================
+# Emergency Kill Switch
+# ============================================================
+
+
+@app.post("/tools/management/emergency_liquidate", response_model=dict)
+def tool_emergency_liquidate(keep_frozen: bool = Body(True, embed=True)) -> dict:
+    """Emergency kill switch — closes ALL positions, cancels ALL orders, freezes trading.
+
+    Most destructive operation. Use only for catastrophic scenarios.
+    """
+    from apps.mcp_server.tools_management import mt5_emergency_liquidate
+
+    return mt5_emergency_liquidate(keep_frozen=keep_frozen)

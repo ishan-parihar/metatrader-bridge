@@ -277,3 +277,31 @@ class Heartbeat(BaseModel):
     account_id: Optional[str] = None
     login: Optional[int] = None
     timestamp: Optional[str] = None
+
+
+class PipelineStatus(BaseModel):
+    """Single-call pipeline diagnostic for agent state triage.
+
+    Returns everything an agent needs to determine pipeline readiness
+    without making 5+ separate API calls.
+    """
+
+    # Bridge-level connectivity
+    bridge_connected: bool = False
+    heartbeat_age_seconds: Optional[float] = None
+    terminal_login: Optional[int] = None
+    terminal_server: Optional[str] = None
+    terminal_build: Optional[int] = None
+
+    # MT5 process health (Wine/Bottles)
+    mt5_terminal_running: bool = False
+
+    # Active adapter
+    active_adapter: str = "unknown"
+
+    # Last known account state (cached; may be stale)
+    last_account: Optional[AccountSummary] = None
+
+    # Summary for agents
+    agent_readiness: Literal["ready", "degraded", "offline"] = "offline"
+    agent_readiness_reason: Optional[str] = None

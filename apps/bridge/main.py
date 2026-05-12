@@ -21,57 +21,17 @@ setup_logging()
 
 
 async def run_tcp_bridge(stop_event: asyncio.Event):
-    """Start TCP Bridge server (ports 8025, 8026, 8027)."""
+    """Start TCP Bridge server on port 8025 (EA connection only)."""
     from apps.tcp_bridge.server import get_bridge_server
 
     ea_port = int(os.getenv("MT5_TCP_BRIDGE_PORT", "8025"))
-    mcp_port = int(os.getenv("MT5_TCP_BRIDGE_MCP_PORT", "8026"))
-    status_port = int(os.getenv("MT5_TCP_BRIDGE_STATUS_PORT", "8027"))
-
     server = get_bridge_server()
 
-    async def handle_status(reader, writer):
-        import json
-
-        try:
-            data = await reader.read(4096)
-            if data and b"HTTP" in data[:20]:
-                body = json.dumps(
-                    {
-                        "ea_connected": server.ea_connected,
-                        "ea_address": server._ea_address,
-                        "pending_commands": server.pending_count,
-                    }
-                ).encode()
-                response = (
-                    b"HTTP/1.1 200 OK\r\n"
-                    b"Content-Type: application/json\r\n"
-                    b"Content-Length: " + str(len(body)).encode() + b"\r\n"
-                    b"Connection: close\r\n"
-                    b"\r\n" + body
-                )
-                writer.write(response)
-                await writer.drain()
-        except Exception:
-            pass
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except Exception:
-                pass
-
-    status_srv = await asyncio.start_server(handle_status, "0.0.0.0", status_port)
-    logger.info(f"TCP Bridge status HTTP on :{status_port}")
-
-    async with status_srv:
-        await server.start()
-        logger.info(
-            f"TCP Bridge running — EA:{ea_port} MCP:{mcp_port} Status:{status_port}"
-        )
-        await stop_event.wait()
-        await server.stop()
-        logger.info("TCP Bridge stopped")
+    await server.start()
+    logger.info(f"TCP Bridge running — EA:{ea_port}")
+    await stop_event.wait()
+    await server.stop()
+    logger.info("TCP Bridge stopped")
 
 
 async def run_http_gateway(stop_event: asyncio.Event):
@@ -102,6 +62,13 @@ async def run_http_gateway(stop_event: asyncio.Event):
 async def run_mcp_server(stop_event: asyncio.Event):
     """Start MCP Server on port 8010."""
     import uvicorn
+
+    # Wire TCP bridge server for in-process MCP tool calls
+    from apps.mcp_server.shared import set_bridge_server
+    from apps.tcp_bridge.server import get_bridge_server as get_tcp_bridge
+
+    set_bridge_server(get_tcp_bridge(), asyncio.get_running_loop())
+
     from apps.mcp_server.main import app
 
     bind_host = os.getenv("MT5_MCP_HOST", "127.0.0.1")
@@ -140,7 +107,6 @@ def main():
     async def run_all():
         await asyncio.gather(
             run_tcp_bridge(stop_event),
-            run_http_gateway(stop_event),
             run_mcp_server(stop_event),
         )
 

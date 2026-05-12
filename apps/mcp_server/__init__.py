@@ -38,6 +38,7 @@ def create_mcp_server() -> FastMCP:
         tools_resources,
         tools_trading,
         tools_vibe,
+        tools_wait,
     )
 
     return mcp
