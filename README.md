@@ -2,7 +2,9 @@
 
 A production-ready bridge between MetaTrader 5 and Model Context Protocol (MCP), enabling AI-driven trading analysis and execution on Linux systems. Runs as a single combined container or a full stack with a headless MT5 terminal in Docker.
 
-**Resource footprint:** ~64 MB for Python services, ~210 MB with MT5 terminal. Fits easily on a 512 MB VPS.
+**Resource footprint:** ~68 MB for Python services (combined), ~210 MB with MT5 terminal. Fits easily on a 512 MB VPS.
+
+**MCP Tools:** 86 curated, non-redundant MCP tools across 14 modules + WebSocket streaming for real-time data + standalone domain-split MCP servers.
 
 ## For AI Agents
 
@@ -19,34 +21,36 @@ The SKILL.md contains everything an AI trading agent needs:
 ## Architecture
 
 ```
-                                         ┌─────────────┐
-                                         │  AI Agent   │
-                                         │  (MCP/Hermes)│
-                                         └──────┬──────┘
-                                                │ MCP + REST (:8010)
-                                                ▼
-                              ┌──────────────────────────────────────┐
-                              │        TradeBridge (1 process)        │
-                              │                                      │
-                              │  HTTP/MCP Server (:8010)             │
-                              │  ├── FastMCP SSE (/mcp)              │
-                              │  ├── REST tools (/tools/*)           │
-                              │  ├── Gateway routes (/bridge/*)      │
-                              │  ├── TCP bridge status               │
-                              │  │   (/tcp-bridge/status)            │
-                              │  ├── Health (/health)                │
-                              │  └── Metrics (/metrics)              │
-                              │                                      │
-                              │  TCP Bridge (:8025)                  │
-                              │  └── Persistent EA connection        │
-                              └──────────────┬───────────────────────┘
-                                             │ TCP (:8025)
-                                             ▼
-                         ┌──────────────────────────────┐
-                         │   MT5 Terminal (1 container) │
-                         │   WineHQ 11 + Xvfb + EA     │
-                         │   ~210 MB RSS               │
-                         └──────────────────────────────┘
+                                          ┌─────────────────────────────┐
+                                          │       AI Agent(s)           │
+                                          │  MCP / Hermes / WebSocket  │
+                                          └─────┬───────┬───────┬──────┘
+                                                │       │       │
+                                   MCP+RES(:8010)│  WS   │ MCP  │
+                                                │ (:8010)│(:8091)│
+                                                ▼       ▼       ▼
+       ┌──────────────────────────────────────────┐  ┌──────────────────────┐
+       │    TradeBridge Combined (:8010)          │  │ Analysis MCP Server  │
+       │                                          │  │  (:8091)             │
+       │  HTTP/MCP Server                         │  │  ├── regime          │
+       │  ├── FastMCP SSE (/mcp)                  │  │  ├── structure       │
+       │  ├── 86+ MCP tools (14 modules)          │  │  ├── snapshot        │
+       │  ├── REST tools (/tools/*)               │  │  └── more analysis   │
+       │  ├── WebSocket streaming (/ws/prices)    │  └──────────────────────┘
+       │  ├── Gateway routes (/bridge/*)          │
+       │  ├── Health (/health)                    │
+       │  └── Metrics (/metrics)                  │
+       │                                          │
+       │  TCP Bridge (:8025)                      │
+       │  └── Persistent EA connection            │
+       └──────────────┬───────────────────────────┘
+                      │ TCP (:8025)
+                      ▼
+          ┌──────────────────────────────┐
+          │   MT5 Terminal (1 container) │
+          │   WineHQ 11 + Xvfb + EA     │
+          │   ~210 MB RSS               │
+          └──────────────────────────────┘
 ```
 
 **Latency:** ~15-25ms end-to-end via in-process bridge (no network hop between services)
@@ -55,6 +59,8 @@ The SKILL.md contains everything an AI trading agent needs:
 - **Linux-Compatible**: MQL5 EA bridge (no Python MT5 module)
 - **Unified Process**: Single Python process serves all HTTP + MCP + TCP ports
 - **In-Process Bridge**: TCP bridge embedded in MCP server — zero network overhead for tool calls
+- **WebSocket Streaming**: Real-time market data push to subscribed clients via `/ws/prices`
+- **Domain-Split Ready**: Reusable `BridgeProtocol` enables standalone MCP servers per domain (analysis server at `:8091`)
 - **TCP Push Model**: Persistent TCP connection, instant command delivery
 - **HTTP Fallback**: Automatic if TCP unavailable (via HTTP Gateway routes on same :8010)
 - **Demo-First**: Execution tools gated for demo accounts in R&D mode
@@ -159,12 +165,16 @@ TradeBridge/
 ├── apps/
 │   ├── bridge/main.py              # Entry point: TCP bridge + HTTP/MCP (1 process)
 │   ├── mcp_server/main.py          # MCP server (:8010) — FastMCP + REST + gateway
+│   │   └── tools_*.py              # 14 MCP tool modules (86 tools across 10 categories)
+│   ├── mcp_analysis/main.py        # Standalone analysis MCP server (:8091)
 │   ├── bridge_gateway/             # Shared gateway routes mounted into :8010
 │   └── tcp_bridge/                 # TCP bridge (:8025) — embedded in entry point
 ├── ea/BridgeConnectorEA.mq5        # MQL5 EA for MT5
 ├── src/mt5_mcp/
 │   ├── schemas/                    # Pydantic models
 │   ├── services/                   # Business logic (regime detection, momentum, etc.)
+│   ├── streaming/                  # WebSocket streaming manager + subscriptions
+│   ├── mcp_bridge_protocol.py      # Reusable async TCP bridge protocol for domain-split servers
 │   ├── policy/                     # Trade policy enforcement
 │   └── observability/              # Logging & metrics
 ├── deploy/
@@ -196,17 +206,30 @@ export MT5_REDIS_URL=redis://redis:6379/0  # Redis connection
 
 ## API Reference
 
-The service exposes **96+ endpoints** (REST + MCP) across categories:
+The service exposes **86 MCP tools** (+ REST equivalents, WebSocket streaming, domain-split servers) across categories:
 
-| Category | Examples | Requires MT5 |
-|----------|----------|-------------|
-| Health & Status | `/health`, `bridge/status`, `terminal/status` | No |
-| Market Data | `/resources/symbols/*/info`, `/tools/get_bars` | Yes |
-| Trading | `/resources/positions/open`, `/tools/trading/order*` | Yes |
-| Analysis | `/tools/data/stats`, `/tools/ml/models` | No |
-| Vibe-Trading | `/vibe/*` | Optional |
+| Category | Tools | Requires MT5 | Description |
+|----------|-------|-------------|-------------|
+| Market Data | 7 | Yes | Bars, indicators, ticks, order book, screenshots, snapshots |
+| Trading | 11+ | Yes | Orders, positions, bracket/flatten, news calendar |
+| Analysis | 16 | Yes | Regime, structure, divergence, patterns, VWAP, correlation, momentum, S/R, volatility, opportunity ranking |
+| Context | 3 | Partial | Agent message board, system health, trading education |
+| Resources | 6 | Yes | Account summary, symbol info, deals history, performance, positions, orders |
+| Portfolio | 4 | Yes | Risk assessment, reconciliation, correlation analysis |
+| Fundamentals | 3 | Partial | Economic risk, market screener, news sentiment |
+| Management | 5 | No | Freeze/thaw, emergency liquidate, safe shutdown, tool status |
+| Streaming | 3 | Yes | WebSocket subscribe/unsubscribe/status |
+| Metacognition | 3 | No | Introspection, capability query |
+| Vibe-Trading | 6 | Partial | MCP-based vibe trading interface |
+| EA-Native | 12 | Yes | Direct EA bridge commands |
+| Data | 5 | No | Local data store import/query/stats |
+| Wait | 1 | No | Time-based wait/poll |
 
-**For AI agents:** The MCP protocol endpoint (`POST /tools/*` and `GET /resources/*`) is the primary interface. Register with Hermes for automatic tool discovery.
+**WebSocket:** Subscribe to real-time price/bar updates at `/ws/prices?token=...`
+
+**Domain-Split:** Dedicated analysis MCP server at `:8091` (standalone, uses `BridgeProtocol`)
+
+**For AI agents:** The MCP protocol endpoint at `/mcp` (SSE) is the primary interface, with 86+ tools auto-discovered. Register with Hermes or any MCP client for automatic tool discovery.
 
 ## Configuration
 
@@ -224,6 +247,10 @@ The service exposes **96+ endpoints** (REST + MCP) across categories:
 # Health checks
 curl http://localhost:8010/health                          # Full service health
 curl http://localhost:8010/tcp-bridge/status                # TCP bridge status
+
+# WebSocket streaming (connect and subscribe)
+# ws-client ws://localhost:8010/ws/prices?token=your_token
+# {"action": "subscribe", "symbols": ["EURUSD"], "timeframes": ["M1", "H1"]}
 
 # Docker container stats
 docker stats --no-stream mt5-combined mt5-terminal mt5-redis

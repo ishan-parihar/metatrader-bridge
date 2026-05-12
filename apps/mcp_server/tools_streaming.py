@@ -9,10 +9,7 @@ Design:
   - Follows the same patterns as tools_context.py / tools_management.py.
 """
 
-from __future__ import annotations
-
 import logging
-from typing import Optional
 
 from mcp.types import ToolAnnotations
 
@@ -107,7 +104,7 @@ def mt5_stream_subscribe(symbol: str) -> dict:
 
 
 @mcp.tool(annotations=_WRITE_ANNOTATIONS)
-def mt5_stream_unsubscribe(symbol: Optional[str] = None) -> dict:
+def mt5_stream_unsubscribe(symbol: str = None) -> dict:
     """Unsubscribe from real-time tick streaming for a symbol or all symbols.
 
     Stops polling for the given symbol (or all symbols) and removes any

@@ -45,3 +45,9 @@ build/
 *.egg-info/
 /.sisyphus
 /.icode
+
+# Agent metadata directories
+.contexty/
+.hive/
+.memsearch/
+.sisyphus/
