@@ -1,20 +1,14 @@
 
 
-import time
 from typing import Any, Optional
 
 from mcp.types import ToolAnnotations
 
 from . import mcp
 from .shared import (
-    _check_frozen_response,
-    _parse_payload,
     _parse_payload_dict,
     _tcp_send_and_await,
     get_gateway,
-    get_http_client,
-    get_settings_cached,
-    is_frozen,
     set_frozen,
     thaw,
     _shutdown_state,
@@ -29,82 +23,6 @@ _WRITE_ANNOTATIONS = ToolAnnotations(
 )
 
 
-@mcp.tool(annotations=_READ_ANNOTATIONS)
-def mt5_health() -> dict:
-    """
-    Probe all TradeBridge subsystems (gateway, HTTP bridge, TCP bridge) and return an aggregated health status.
-
-    Use this as the first diagnostic call when anything seems wrong. It tests every communication
-    path the system uses and pinpoints which layer is failing.
-
-    Args:
-        None
-
-    Returns:
-        dict: Contains "status" (healthy/degraded/unhealthy), "subsystems" with per-layer
-              diagnostics, "timestamp" (ISO 8601 timestamp), and "frozen" (bool).
-
-    Example: mt5_health() → {"status": "healthy", "subsystems": {...}, "frozen": false}
-
-    Note: A "degraded" status means some subsystems work but others are impaired — trading may
-          still function with reduced capability. "unhealthy" indicates critical path failures.
-    """
-    try:
-        subsystems: dict[str, Any] = {}
-
-        try:
-            gw_status = get_gateway().terminal_status()
-            connected = getattr(gw_status, "connected", False)
-            subsystems["gateway"] = {
-                "status": "ok" if connected else "unreachable",
-                "details": gw_status.model_dump()
-                if hasattr(gw_status, "model_dump")
-                else dict(gw_status)
-                if hasattr(gw_status, "__dict__")
-                else str(gw_status),
-            }
-        except Exception as e:
-            subsystems["gateway"] = {"status": "error", "error": str(e)}
-
-        # HTTP bridge health check
-        try:
-            resp = get_http_client().post(
-                f"{get_settings_cached().gateway_url}/bridge/health"
-            )
-            subsystems["bridge"] = {
-                "status": "ok" if resp.status_code == 200 else "degraded",
-                "http_status": resp.status_code,
-            }
-        except Exception as e:
-            subsystems["bridge"] = {"status": "error", "error": str(e)}
-
-        # TCP check
-        try:
-            tcp_result = _tcp_send_and_await("get_positions", {}, timeout_s=5.0)
-            if tcp_result and tcp_result.get("status") == "completed":
-                subsystems["tcp"] = {"status": "ok"}
-            else:
-                subsystems["tcp"] = {"status": "degraded", "result": tcp_result}
-        except Exception as e:
-            subsystems["tcp"] = {"status": "error", "error": str(e)}
-
-        # Aggregate overall status
-        statuses = [s.get("status") for s in subsystems.values()]
-        if "error" in statuses or "unreachable" in statuses:
-            overall = "unhealthy"
-        elif "degraded" in statuses:
-            overall = "degraded"
-        else:
-            overall = "healthy"
-
-        return {
-            "status": overall,
-            "subsystems": subsystems,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "frozen": is_frozen(),
-        }
-    except Exception as e:
-        return {"error": str(e)}
 
 
 @mcp.tool(annotations=_READ_ANNOTATIONS)

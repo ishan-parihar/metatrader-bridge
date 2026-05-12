@@ -7,8 +7,8 @@ All tools are read-only (no destructive operations) and return dicts.
 
 Dependencies:
     - mt5_mcp.services.economic_calendar (get_upcoming_events, is_blackout_now, get_blackout_windows)
-    - mt5_mcp.services.session_service (get_session_context, get_session_for_pair)
-    - mt5_mcp.services.news_service (fetch_news, get_available_pools)
+    - mt5_mcp.services.session_service (get_session_context)
+    - mt5_mcp.services.news_service (fetch_news)
 """
 
 from __future__ import annotations
@@ -22,30 +22,19 @@ from mcp.types import ToolAnnotations
 
 from . import mcp
 from .shared import (
-    get_gateway,
-    get_http_client,
-    get_settings_cached,
     _tcp_send_and_await,
-    _batch_enqueue_and_await,
-    _await_result,
-    _parse_payload,
     _parse_payload_dict,
-    _parse_indicator_value,
-    _first_bid_ask,
-    is_frozen,
 )
 from mt5_mcp.adapters.common.symbol_utils import normalize_symbol, denormalize_symbol
 from mt5_mcp.services.economic_calendar import (
     get_upcoming_events,
     is_blackout_now,
     get_blackout_windows,
-    get_daily_briefing,
 )
 from mt5_mcp.services.session_service import (
     get_session_context,
-    get_session_for_pair,
 )
-from mt5_mcp.services.news_service import fetch_news, get_available_pools
+from mt5_mcp.services.news_service import fetch_news
 
 _READ_ANNOTATIONS = ToolAnnotations(
     readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -485,123 +474,6 @@ def mt5_market_screener(
         }
     except Exception as e:
         logger.error(f"mt5_market_screener failed: {e}", exc_info=True)
-        return {"error": str(e)}
-
-
-# ===================================================================
-# Tool 3: mt5_session_activity_summary
-# ===================================================================
-
-
-@mcp.tool(annotations=_READ_ANNOTATIONS)
-def mt5_session_activity_summary() -> dict:
-    """Current forex session activity summary — active sessions, overlaps, quality scores, and recommended pairs.
-
-    Use this tool when you need a session-aware overview of current market
-    conditions without specifying a symbol. It identifies which forex sessions
-    are active, measures overall market activity via EURUSD M1 bar data, and
-    ranks sessions by quality/liquidity.
-
-    Args:
-        None
-
-    Returns:
-        dict: Contains "active_sessions" (list with name, open/close times,
-              time_until_close, activity_score), "overlap_count",
-              "active_overlaps", "highest_quality_session",
-              "recommended_pairs", "market_activity_score",
-              "session_context", and "timestamp".
-              On error, returns {"error": str}.
-
-    Example:
-        mt5_session_activity_summary() →
-          {"active_sessions": [{"name": "london", "activity_score": 0.85, ...}],
-           "overlap_count": 1, "recommended_pairs": ["EURUSD", "GBPUSD", ...], ...}
-
-    Note:
-        Activity is gauged by fetching 5 M1 bars of EURUSD as a liquidity proxy.
-        Session times are approximate (DST may shift boundaries by ±1 hour).
-    """
-    try:
-        # ---- 1. Get forex session context ----
-        session = get_session_context()
-        session_dict = (
-            session.to_dict() if hasattr(session, "to_dict") else {}
-        )
-
-        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-
-        # ---- 2. Gauge activity via EURUSD M1 bars ----
-        bars_result = _tcp_send_and_await(
-            "get_bars",
-            {"symbol": "EURUSD", "timeframe": "M1", "count": 5},
-        )
-        bars_data = (
-            _parse_payload_dict(bars_result).get("data", [])
-            if bars_result
-            else []
-        )
-
-        # Compute market activity score from recent bars
-        market_activity_score = 0.0
-        if bars_data:
-            ranges: list[float] = []
-            volumes: list[float] = []
-            for b in bars_data[-5:]:
-                if b.get("high") is not None and b.get("low") is not None:
-                    ranges.append(float(b["high"]) - float(b["low"]))
-                volumes.append(float(b.get("volume", 0) or 0))
-
-            avg_range = sum(ranges) / len(ranges) if ranges else 0.0
-            avg_volume = sum(volumes) / len(volumes) if volumes else 0.0
-            # Normalized activity score (0-1 range)
-            market_activity_score = min(
-                1.0, (avg_range * 5000 + avg_volume / 50) / 10.0
-            )
-
-        # ---- 3. Build active sessions list ----
-        active_session_names = session_dict.get("current_sessions", [])
-        quality_scores = session_dict.get("session_quality_scores", {})
-        time_to_close_mins = session_dict.get("time_to_session_close_minutes", 0)
-
-        active_sessions_list: list[dict] = []
-        for s_name in active_session_names:
-            open_time, close_time = _SESSION_TIMES.get(s_name, ("--:--", "--:--"))
-            active_sessions_list.append({
-                "name": s_name,
-                "open": open_time,
-                "close": close_time,
-                "time_until_close": _format_timedelta(time_to_close_mins),
-                "activity_score": round(quality_scores.get(s_name, 0.0), 3),
-                "session_quality": quality_scores.get(s_name, 0.0),
-            })
-
-        # ---- 4. Overlap analysis ----
-        active_overlaps = session_dict.get("active_overlaps", [])
-        overlap_count = len(active_overlaps)
-
-        # ---- 5. Highest quality session ----
-        if quality_scores:
-            highest_quality = max(quality_scores, key=quality_scores.get)  # type: ignore[arg-type]
-        else:
-            highest_quality = "none"
-
-        return {
-            "active_sessions": active_sessions_list,
-            "overlap_count": overlap_count,
-            "active_overlaps": active_overlaps,
-            "highest_quality_session": highest_quality,
-            "recommended_pairs": session_dict.get("recommended_pairs", []),
-            "market_open": session_dict.get("is_market_open", True),
-            "market_activity_score": round(market_activity_score, 4),
-            "volatility_regime": session_dict.get("volatility_regime", "unknown"),
-            "spread_quality": session_dict.get("spread_quality", "unknown"),
-            "warnings": session_dict.get("warnings", []),
-            "session_context": session_dict,
-            "timestamp": time.time(),
-        }
-    except Exception as e:
-        logger.error(f"mt5_session_activity_summary failed: {e}", exc_info=True)
         return {"error": str(e)}
 
 

@@ -13,53 +13,6 @@ _PORTFOLIO_ANNOTATIONS = ToolAnnotations(
 )
 
 
-# ---------------------------------------------------------------------------
-# Tool 1: mt5_portfolio_exposure
-# ---------------------------------------------------------------------------
-@mcp.tool(name="mt5_portfolio_exposure", annotations=_PORTFOLIO_ANNOTATIONS)
-def mt5_portfolio_exposure() -> dict:
-    """
-    Calculate the current portfolio exposure across all open positions and pending orders.
-
-    Use this before any trade entry to understand your current market exposure. This is a
-    read-only analytical tool that breaks down notional exposure by symbol, including
-    directional bias (long/short) and correlated exposure. Helps identify over-concentration
-    in any single asset or correlated group.
-
-    Args:
-        None
-
-    Returns:
-        dict: Symbol-level exposure breakdown with notional values, directional information,
-              and correlation data. Structure depends on PortfolioRiskService. Key fields:
-              total_exposure_usd, net_exposure_usd, exposure_by_symbol, margin_usage_pct,
-              risk_score, correlation_groups.
-
-    Example: mt5_portfolio_exposure() → {"total_exposure_usd": 15000, "exposure_by_symbol": {...}, "risk_score": 0.35}
-
-    Note: This tool is purely analytical and does not modify any state. Requires MT5
-          connectivity to fetch current positions and orders. Returns error dict on failure.
-    """
-    try:
-        from .tools_resources import (
-            mt5_positions_open,
-            mt5_orders_pending,
-            mt5_account_summary,
-        )
-        from mt5_mcp.services.portfolio_risk import PortfolioRiskService
-
-        positions = mt5_positions_open()
-        orders = mt5_orders_pending()
-        account = mt5_account_summary()
-
-        svc = PortfolioRiskService(
-            get_positions_fn=lambda: positions.get("positions", []),
-            get_orders_fn=lambda: orders.get("orders", []),
-            get_account_fn=lambda: account,
-        )
-        return svc.get_exposure()
-    except Exception as e:
-        return {"error": str(e)}
 
 
 # ---------------------------------------------------------------------------

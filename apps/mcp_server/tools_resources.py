@@ -8,10 +8,7 @@ from mt5_mcp.observability.logging import logger
 from . import mcp
 from .shared import (
     get_gateway,
-    get_http_client,
-    get_settings_cached,
     _tcp_send_and_await,
-    _parse_payload,
     _parse_payload_dict,
 )
 
@@ -21,39 +18,6 @@ _READ_ANNOTATIONS = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=True,
 )
-
-
-# ---------------------------------------------------------------------------
-# Tool 1: mt5_terminal_status
-# ---------------------------------------------------------------------------
-@mcp.tool(name="mt5_terminal_status", annotations=_READ_ANNOTATIONS)
-def mt5_terminal_status() -> dict:
-    """Check whether the MT5 terminal is connected and responsive.
-
-    Use this before any trading operation to confirm the bridge is alive. If
-    the terminal is disconnected, all other tools will return empty or error
-    responses — this is the first tool to call in any trading cycle.
-
-    Args:
-        None
-
-    Returns:
-        dict: Terminal connection state with keys:
-            - connected (bool): Whether MT5 terminal is reachable
-            - server (str, optional): Connected server name
-            - company (str, optional): Broker company name
-            - error (str, present on failure): Error description
-
-    Example: mt5_terminal_status()
-
-    Note: This is a LIVE check — always reflects current state. Does not
-    require an active account session to succeed.
-    """
-    try:
-        result = get_gateway().terminal_status()
-        return result.model_dump() if hasattr(result, "model_dump") else dict(result)
-    except Exception as e:
-        return {"error": "terminal_status_unavailable", "connected": False}
 
 
 # ---------------------------------------------------------------------------
@@ -766,47 +730,3 @@ def mt5_orders_pending() -> dict:
             "data_freshness": "live",
         },
     }
-
-
-# ---------------------------------------------------------------------------
-# Tool 8: mt5_bridge_status
-# ---------------------------------------------------------------------------
-@mcp.tool(name="mt5_bridge_status", annotations=_READ_ANNOTATIONS)
-def mt5_bridge_status() -> dict:
-    """Check the health and connectivity of the TCP bridge to the MT5 terminal.
-
-    Use this to diagnose connection issues when other tools return errors. If
-    the bridge is disconnected, check that the MT5 terminal is running, the
-    EA is attached to a chart, and TCP bridge settings are correct.
-
-    Args:
-        None
-
-    Returns:
-        dict: Bridge status with keys:
-            - connected (bool): Whether TCP bridge is connected to MT5 terminal
-            - terminal_build (int, optional): MT5 build number
-            - terminal_version (str, optional): MT5 version string
-            - bridge_uptime (float, optional): Bridge uptime in seconds
-            - ea_connected (bool, optional): Whether EA is connected to bridge
-            - message (str): Status description
-            - error (str, present on failure): Error description
-
-    Example: mt5_bridge_status()
-
-    Note: LIVE check against the HTTP gateway endpoint. Returns
-    {"connected": False} with error details if the HTTP check fails. This is a
-    critical diagnostic tool — call before escalation.
-    """
-    try:
-        client = get_http_client()
-        r = client.get(f"{get_settings_cached().gateway_url}/bridge/terminal/status")
-        r.raise_for_status()
-        return r.json()
-    except Exception as e:
-        logger.warning(f"mt5_bridge_status: HTTP check failed — {e}")
-        return {
-            "connected": False,
-            "message": "Bridge status unavailable",
-            "error": str(e),
-        }

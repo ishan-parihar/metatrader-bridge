@@ -65,6 +65,7 @@ class SymbolSnapshotService:
         ema_fast: float | None = None,
         ema_slow: float | None = None,
         macd: dict | None = None,
+        bbands: dict | None = None,
         # From order book endpoint
         order_book_data: dict | None = None,
         # From ticks (for spread)
@@ -133,6 +134,7 @@ class SymbolSnapshotService:
             ema_fast=ema_fast,
             ema_slow=ema_slow,
             macd=macd,
+            bbands=bbands,
             symbol=symbol_upper,
         )
         result["indicators"] = indicators
@@ -334,6 +336,7 @@ class SymbolSnapshotService:
         ema_fast: float | None,
         ema_slow: float | None,
         macd: dict | None,
+        bbands: dict | None = None,
         symbol: str,
     ) -> dict:
         """Summarize indicator values with context."""
@@ -375,6 +378,10 @@ class SymbolSnapshotService:
         # MACD
         if macd is not None:
             indicators["macd"] = macd
+
+        # Bollinger Bands
+        if bbands is not None:
+            indicators["bbands"] = bbands
 
         return indicators
 
