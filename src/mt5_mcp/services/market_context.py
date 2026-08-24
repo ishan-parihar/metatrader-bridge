@@ -16,7 +16,7 @@ This gives the agent composure through DATA, not platitudes.
 CRITICAL: Unit normalization.
 - MT5 returns all indicator values (ATR, etc.) in PRICE units.
 - Baseline typical_atr_h1 is in PIPS.
-- "Points" in the TradeBridge system = smallest price increment (5th decimal for forex).
+- "Points" in the MetaTraderBridge system = smallest price increment (5th decimal for forex).
 - 1 pip = 10 points (for 5-digit forex).
 - All calculations normalize to PIPS for comparison, then convert back to points for display.
 """

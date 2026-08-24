@@ -1,10 +1,10 @@
-# Vibe-Trading × TradeBridge Integration Plan
+# Vibe-Trading × MetaTraderBridge Integration Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Integrate Vibe-Trading's research/strategy/backtesting capabilities with TradeBridge's MT5 execution layer via an external adapter inside TradeBridge/apps/, while maintaining a clean fork workflow that pulls upstream Vibe-Trading updates without merge conflicts.
+**Goal:** Integrate Vibe-Trading's research/strategy/backtesting capabilities with MetaTraderBridge's MT5 execution layer via an external adapter inside MetaTraderBridge/apps/, while maintaining a clean fork workflow that pulls upstream Vibe-Trading updates without merge conflicts.
 
-**Architecture:** The adapter spawns Vibe-Trading's existing MCP server as a managed subprocess and exposes its 17 tools through TradeBridge's bridge gateway. A signal translator converts Vibe-Trading strategy output into TradeBridge-compatible order parameters. Zero modifications to Vibe-Trading core code — it's consumed as a black-box MCP service.
+**Architecture:** The adapter spawns Vibe-Trading's existing MCP server as a managed subprocess and exposes its 17 tools through MetaTraderBridge's bridge gateway. A signal translator converts Vibe-Trading strategy output into MetaTraderBridge-compatible order parameters. Zero modifications to Vibe-Trading core code — it's consumed as a black-box MCP service.
 
 **Tech Stack:** Python 3.11+, FastAPI, MCP protocol (stdio), subprocess management, Pydantic, Poetry, Git (fork + upstream remote)
 
@@ -23,7 +23,7 @@ ishanp/Vibe-Trading (fork, your GitLab)
          │ your integration branch diverges here
          │
     ┌────┴────────────────────┐
-    │ integration/adapter     │  ← your commits (adapter code in TradeBridge/apps/)
+    │ integration/adapter     │  ← your commits (adapter code in MetaTraderBridge/apps/)
     │                         │     + minimal Vibe-Trading tweaks if needed
     │  main                   │  ← clean mirror of upstream (auto-updated)
     └─────────────────────────┘
@@ -32,7 +32,7 @@ ishanp/Vibe-Trading (fork, your GitLab)
 **Why this works:**
 - Your fork on GitLab tracks `upstream/main` (HKUDS/Vibe-Trading)
 - Your `main` branch stays a clean mirror — you `git fetch upstream && git rebase upstream/main` regularly
-- Integration work lives **in TradeBridge/apps/vibe_bridge/** — a separate repo entirely
+- Integration work lives **in MetaTraderBridge/apps/vibe_bridge/** — a separate repo entirely
 - If you need to modify Vibe-Trading code, you do it on `integration/adapter` branch and rebase onto `main` after upstream updates
 - **Best case:** Zero Vibe-Trading modifications. The adapter connects via MCP protocol only.
 
@@ -64,10 +64,10 @@ git push origin integration/adapter --force-with-lease
 | `apps/vibe_bridge/__init__.py` | Create | Package init |
 | `apps/vibe_bridge/config.py` | Create | Vibe-Trading connection config, env vars |
 | `apps/vibe_bridge/client.py` | Create | MCP subprocess manager + tool invoker |
-| `apps/vibe_bridge/signal_translator.py` | Create | Vibe-Trading strategy → TradeBridge orders |
+| `apps/vibe_bridge/signal_translator.py` | Create | Vibe-Trading strategy → MetaTraderBridge orders |
 | `apps/vibe_bridge/lifecycle.py` | Create | Process start/stop/health management |
 | `apps/vibe_bridge/gateway_routes.py` | Create | FastAPI routes exposed through bridge gateway |
-| `apps/vibe_bridge/tools.py` | Create | TradeBridge MCP tool wrappers for Vibe-Trading tools |
+| `apps/vibe_bridge/tools.py` | Create | MetaTraderBridge MCP tool wrappers for Vibe-Trading tools |
 | `tests/test_vibe_bridge_client.py` | Create | Tests for MCP subprocess client |
 | `tests/test_signal_translator.py` | Create | Tests for signal → order translation |
 | `pyproject.toml` | Modify | Add Vibe-Trading as editable dependency |
@@ -108,7 +108,7 @@ git status
 # If not clean: git stash or commit any local changes to integration branch first
 ```
 
-- [ ] **Step 1.3: Add Vibe-Trading as editable dependency in TradeBridge**
+- [ ] **Step 1.3: Add Vibe-Trading as editable dependency in MetaTraderBridge**
 
 ```toml
 # In pyproject.toml, add after line 22 (mcp = "^1.0.0"):
@@ -157,7 +157,7 @@ VIBE_TRADING_LLM_MODEL=deepseek-r1:latest
 """Vibe-Trading integration adapter.
 
 Spawns Vibe-Trading's MCP server as a managed subprocess and exposes
-its research/strategy/backtesting tools through the TradeBridge gateway.
+its research/strategy/backtesting tools through the MetaTraderBridge gateway.
 """
 
 __version__ = "0.1.0"
@@ -166,10 +166,10 @@ __version__ = "0.1.0"
 - [ ] **Step 1.6: Install dependencies**
 
 ```bash
-cd ~/Documents/GitHub/TradeBridge
+cd ~/Documents/GitHub/MetaTraderBridge
 poetry install
 # Expected: resolves Vibe-Trading + all its deps (langchain, fastmcp, akshare, etc.)
-# If conflicts: check for version clashes between TradeBridge and Vibe-Trading deps
+# If conflicts: check for version clashes between MetaTraderBridge and Vibe-Trading deps
 ```
 
 - [ ] **Step 1.7: Commit**
@@ -204,9 +204,9 @@ def get_vibe_trading_dir() -> Path:
     env_path = os.getenv("VIBE_TRADING_DIR")
     if env_path:
         return Path(env_path).resolve()
-    # Default: sibling directory to TradeBridge
-    tradebridge_root = Path(__file__).resolve().parent.parent.parent
-    default = (tradebridge_root.parent / "Vibe-Trading" / "agent").resolve()
+    # Default: sibling directory to MetaTraderBridge
+    mtbridge_root = Path(__file__).resolve().parent.parent.parent
+    default = (mtbridge_root.parent / "Vibe-Trading" / "agent").resolve()
     if default.exists():
         return default
     raise FileNotFoundError(
@@ -430,7 +430,7 @@ class TestVibeBridgeLifecycle:
 - [ ] **Step 2.4: Run tests**
 
 ```bash
-cd ~/Documents/GitHub/TradeBridge
+cd ~/Documents/GitHub/MetaTraderBridge
 poetry run pytest tests/test_vibe_lifecycle.py -v
 # Expected: 4 tests pass
 ```
@@ -725,10 +725,10 @@ git commit -m "feat: add Vibe-Trading MCP client with tool invocation over SSE"
 
 ```python
 # apps/vibe_bridge/signal_translator.py
-"""Translate Vibe-Trading strategy/research output into TradeBridge-compatible orders.
+"""Translate Vibe-Trading strategy/research output into MetaTraderBridge-compatible orders.
 
 Vibe-Trading produces research reports, swarm debates, and backtest results.
-This module extracts actionable signals and maps them to TradeBridge order schemas.
+This module extracts actionable signals and maps them to MetaTraderBridge order schemas.
 """
 
 import json
@@ -767,7 +767,7 @@ class TradeSignal:
     risk_reward: Optional[float] = None
 
     def to_order_params(self) -> dict:
-        """Convert signal to TradeBridge submit_order parameters."""
+        """Convert signal to MetaTraderBridge submit_order parameters."""
         params = {
             "symbol": self._map_symbol(self.symbol),
             "action": self.action.value,
@@ -1066,12 +1066,12 @@ poetry run pytest tests/test_signal_translator.py -v
 
 ```bash
 git add apps/vibe_bridge/signal_translator.py tests/test_signal_translator.py
-git commit -m "feat: add signal translator for Vibe-Trading → TradeBridge order mapping"
+git commit -m "feat: add signal translator for Vibe-Trading → MetaTraderBridge order mapping"
 ```
 
 ---
 
-### Task 5: Gateway Routes — Expose Vibe-Trading Through TradeBridge
+### Task 5: Gateway Routes — Expose Vibe-Trading Through MetaTraderBridge
 
 **Files:**
 - Create: `apps/vibe_bridge/gateway_routes.py`
@@ -1082,7 +1082,7 @@ git commit -m "feat: add signal translator for Vibe-Trading → TradeBridge orde
 
 ```python
 # apps/vibe_bridge/gateway_routes.py
-"""FastAPI routes exposing Vibe-Trading capabilities through TradeBridge gateway."""
+"""FastAPI routes exposing Vibe-Trading capabilities through MetaTraderBridge gateway."""
 
 from typing import Any, Optional
 
@@ -1134,7 +1134,7 @@ class VibeBacktestRequest(BaseModel):
     run_dir: str = Field(..., description="Path to backtest run directory")
     auto_execute: bool = Field(
         default=False,
-        description="If true and backtest is good, generate TradeBridge orders",
+        description="If true and backtest is good, generate MetaTraderBridge orders",
     )
     symbol: str = Field(default="", description="Symbol for order mapping")
 
@@ -1225,7 +1225,7 @@ async def vibe_swarm_presets():
 
 @router.post("/backtest")
 async def vibe_backtest(req: VibeBacktestRequest):
-    """Run a backtest and optionally generate TradeBridge orders from results."""
+    """Run a backtest and optionally generate MetaTraderBridge orders from results."""
     import json
 
     client = get_client()
@@ -1259,7 +1259,7 @@ async def vibe_swarm_analyze_and_trade(req: VibeSwarmRunRequest):
 
     This is the main integration endpoint: runs a swarm team,
     extracts trade signals from the report, and returns
-    TradeBridge-compatible order parameters.
+    MetaTraderBridge-compatible order parameters.
     """
     import json
 
@@ -1319,12 +1319,12 @@ app.include_router(vibe_router, prefix="/api")
 
 ```bash
 git add apps/vibe_bridge/gateway_routes.py apps/bridge_gateway/main.py
-git commit -m "feat: expose Vibe-Trading routes through TradeBridge gateway"
+git commit -m "feat: expose Vibe-Trading routes through MetaTraderBridge gateway"
 ```
 
 ---
 
-### Task 6: MCP Tool Integration — Add Vibe-Trading Tools to TradeBridge MCP
+### Task 6: MCP Tool Integration — Add Vibe-Trading Tools to MetaTraderBridge MCP
 
 **Files:**
 - Create: `apps/vibe_bridge/tools.py`
@@ -1334,9 +1334,9 @@ git commit -m "feat: expose Vibe-Trading routes through TradeBridge gateway"
 
 ```python
 # apps/vibe_bridge/tools.py
-"""TradeBridge MCP tool wrappers for Vibe-Trading capabilities.
+"""MetaTraderBridge MCP tool wrappers for Vibe-Trading capabilities.
 
-These tools are registered with the TradeBridge MCP server and
+These tools are registered with the MetaTraderBridge MCP server and
 forward calls to the Vibe-Trading subprocess via the gateway client.
 """
 
@@ -1408,7 +1408,7 @@ async def vibe_swarm_to_signal(report: str, preset: str = "") -> str:
     """Extract tradeable signal from a Vibe-Trading swarm report.
 
     Parses the report for BUY/SELL recommendations with entry/exit levels
-    and returns TradeBridge-compatible order parameters.
+    and returns MetaTraderBridge-compatible order parameters.
     """
     signal = extract_signal_from_swarm_report(report, preset)
     if signal is None:
@@ -1437,7 +1437,7 @@ async def vibe_web_search(query: str, max_results: int = 5) -> str:
     return await client.web_search(query, max_results)
 ```
 
-- [ ] **Step 6.2: Register tools in TradeBridge MCP server**
+- [ ] **Step 6.2: Register tools in MetaTraderBridge MCP server**
 
 Read `apps/mcp_server/main.py` and `apps/mcp_server/tools_analysis.py`. Add the vibe tools to the analysis module following the existing pattern. Each tool should follow the same registration pattern as existing tools.
 
@@ -1449,13 +1449,13 @@ from apps.vibe_bridge import tools as vibe_tools
 # Then register each tool following the existing pattern for MCP tool registration
 ```
 
-The exact registration depends on TradeBridge's existing tool registration pattern. Follow whatever convention is already used (decorator, registration function, etc.).
+The exact registration depends on MetaTraderBridge's existing tool registration pattern. Follow whatever convention is already used (decorator, registration function, etc.).
 
 - [ ] **Step 6.3: Commit**
 
 ```bash
 git add apps/vibe_bridge/tools.py apps/mcp_server/tools_analysis.py
-git commit -m "feat: expose Vibe-Trading tools through TradeBridge MCP server"
+git commit -m "feat: expose Vibe-Trading tools through MetaTraderBridge MCP server"
 ```
 
 ---
@@ -1526,7 +1526,7 @@ git commit -m "feat: add Vibe-Trading lifecycle management to gateway startup/sh
 
 ```python
 # tests/test_vibe_integration.py
-"""Integration tests for Vibe-Trading ↔ TradeBridge bridge."""
+"""Integration tests for Vibe-Trading ↔ MetaTraderBridge bridge."""
 
 import json
 import os
@@ -1643,12 +1643,12 @@ git rebase main
 # Resolve any conflicts (should be minimal if adapter is external)
 git push origin integration/adapter --force-with-lease
 
-# 4. Reinstall deps in TradeBridge (if Vibe-Trading added new deps)
-cd ~/Documents/GitHub/TradeBridge
+# 4. Reinstall deps in MetaTraderBridge (if Vibe-Trading added new deps)
+cd ~/Documents/GitHub/MetaTraderBridge
 poetry install
 ```
 
-**Why conflicts will be minimal:** The adapter lives in TradeBridge, not Vibe-Trading. The only potential conflicts are if Vibe-Trading changes its MCP tool signatures or API endpoints — which the tests will catch immediately.
+**Why conflicts will be minimal:** The adapter lives in MetaTraderBridge, not Vibe-Trading. The only potential conflicts are if Vibe-Trading changes its MCP tool signatures or API endpoints — which the tests will catch immediately.
 
 ---
 

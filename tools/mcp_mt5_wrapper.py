@@ -1,4 +1,4 @@
-"""TradeBridge FastMCP stdio entry point.
+"""MetaTraderBridge FastMCP stdio entry point.
 
 Thin wrapper: imports all tools from apps/mcp_server/ and serves via stdio.
 Formerly 2,312 lines of FastAPI proxy logic — now a single import + run.

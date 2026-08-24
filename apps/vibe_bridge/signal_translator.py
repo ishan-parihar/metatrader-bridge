@@ -1,7 +1,7 @@
-"""Translate Vibe-Trading strategy/research output into TradeBridge-compatible orders.
+"""Translate Vibe-Trading strategy/research output into MetaTraderBridge-compatible orders.
 
 Vibe-Trading produces research reports, swarm debates, and backtest results.
-This module extracts actionable signals and maps them to TradeBridge order schemas.
+This module extracts actionable signals and maps them to MetaTraderBridge order schemas.
 """
 
 import json
@@ -49,7 +49,7 @@ class TradeSignal:
         self.symbol = self._map_symbol(self.symbol)
 
     def to_order_params(self) -> dict[str, str | float]:
-        """Convert signal to TradeBridge submit_order parameters."""
+        """Convert signal to MetaTraderBridge submit_order parameters."""
         params: dict[str, str | float] = {
             "symbol": self._map_symbol(self.symbol),
             "action": self.action.value,

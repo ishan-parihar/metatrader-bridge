@@ -28,7 +28,7 @@ _WRITE_ANNOTATIONS = ToolAnnotations(
 @mcp.tool(annotations=_READ_ANNOTATIONS)
 def mt5_tool_status() -> dict:
     """
-    Validate whether TradeBridge can perform reads, writes, waits, and analysis operations.
+    Validate whether MetaTraderBridge can perform reads, writes, waits, and analysis operations.
 
     Use this to determine which categories of tools are available before initiating a workflow.
     For example, call before a trade to confirm write capability, or before data analysis to
@@ -155,7 +155,7 @@ def mt5_emergency_liquidate(
     """
     EMERGENCY: Immediately close ALL positions, cancel ALL pending orders, and freeze trading.
 
-    ⚠️  THIS IS THE MOST DESTRUCTIVE TOOL IN TRADEBRIDGE.  ⚠️
+    ⚠️  THIS IS THE MOST DESTRUCTIVE TOOL IN METATRADER-BRIDGE.  ⚠️
     Use ONLY in true emergencies: flash crashes, black swan events, catastrophic system
     malfunction, or runaway trading behavior. There is NO UNDO — all positions are closed
     and all orders are cancelled immediately.

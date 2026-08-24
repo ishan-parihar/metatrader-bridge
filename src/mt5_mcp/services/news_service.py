@@ -280,7 +280,7 @@ def _fetch_source(source: NewsSource) -> list[NewsItem]:
     try:
         response = requests.get(
             source.url,
-            headers={"User-Agent": "TradeBridge-News/1.0"},
+            headers={"User-Agent": "MetaTraderBridge-News/1.0"},
             timeout=source.timeout_seconds,
         )
         response.raise_for_status()

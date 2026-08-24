@@ -15,8 +15,8 @@ services:
       retries: 3
       start_period: 5s
 
-  # ─── Combined TradeBridge (TCP + HTTP Gateway + MCP Server) ─────────
-  tradebridge:
+  # ─── Combined MetaTraderBridge (TCP + HTTP Gateway + MCP Server) ─────────
+  metatrader-bridge:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -63,7 +63,7 @@ services:
       - MT5_BROKER_LOGIN=${MT5_BROKER_LOGIN:-}
       - MT5_BROKER_PASSWORD=${MT5_BROKER_PASSWORD:-}
       - MT5_BROKER_SERVER=${MT5_BROKER_SERVER:-MetaQuotes-Demo}
-      - EA_TCP_HOST=tradebridge
+      - EA_TCP_HOST=metatrader-bridge
       - EA_TCP_PORT=8025
       - DISPLAY=:99
       - WINEDEBUG=-all
@@ -75,7 +75,7 @@ services:
     volumes:
       - mt5-config:/config
     depends_on:
-      tradebridge:
+      metatrader-bridge:
         condition: service_healthy
     restart: on-failure:2
 

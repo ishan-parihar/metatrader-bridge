@@ -94,7 +94,7 @@ class TradeJournalDB:
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
-            db_path = str(Path.home() / ".TradeBridge" / "trading_journal.db")
+            db_path = str(Path.home() / ".MetaTraderBridge" / "trading_journal.db")
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)

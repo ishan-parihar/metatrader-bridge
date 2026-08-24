@@ -1,4 +1,4 @@
-"""FastAPI routes exposing Vibe-Trading capabilities through TradeBridge gateway."""
+"""FastAPI routes exposing Vibe-Trading capabilities through MetaTraderBridge gateway."""
 
 import json
 from typing import Any, Optional
@@ -51,7 +51,7 @@ class VibeBacktestRequest(BaseModel):
     run_dir: str = Field(..., description="Path to backtest run directory")
     auto_execute: bool = Field(
         default=False,
-        description="If true and backtest is good, generate TradeBridge orders",
+        description="If true and backtest is good, generate MetaTraderBridge orders",
     )
     symbol: str = Field(default="", description="Symbol for order mapping")
 
@@ -158,7 +158,7 @@ async def vibe_swarm_presets():
 
 @router.post("/backtest")
 async def vibe_backtest(req: VibeBacktestRequest):
-    """Run a backtest and optionally generate TradeBridge orders from results."""
+    """Run a backtest and optionally generate MetaTraderBridge orders from results."""
     client = get_client()
     await client.ensure_ready()
     result = await client.backtest(req.run_dir)
@@ -190,7 +190,7 @@ async def vibe_swarm_analyze_and_trade(req: VibeSwarmRunRequest):
 
     This is the main integration endpoint: runs a swarm team,
     extracts trade signals from the report, and returns
-    TradeBridge-compatible order parameters.
+    MetaTraderBridge-compatible order parameters.
     """
     client = get_client()
     await client.ensure_ready()

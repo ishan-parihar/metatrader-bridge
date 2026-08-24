@@ -1,4 +1,4 @@
-# TradeBridge Integration Audit: Tools ↔ SKILL.md Alignment
+# MetaTraderBridge Integration Audit: Tools ↔ SKILL.md Alignment
 
 **Date**: 2026-04-09
 **Scope**: Full audit of 57 tool definitions in `tools/mcp_mt5_wrapper.py` against `~/.agents/skills/mt5-trading/SKILL.md` and 7 reference documents
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The TradeBridge system has three layers treated as a single project: the MQL5 EA (MT5 Terminal), the Python MCP Server (FastAPI), and the Agent Skill (SKILL.md + references). After completing Phases 1-6 of the upgrade plan, the tool definitions are excellent — structured, agent-consumable, and comprehensive with What/When/Output/Assumptions/Composition patterns across all 57 tools. The SKILL.md has been significantly upgraded with exact tool names, Phase 11 (Wait Protocol), and cross-references.
+The MetaTraderBridge system has three layers treated as a single project: the MQL5 EA (MT5 Terminal), the Python MCP Server (FastAPI), and the Agent Skill (SKILL.md + references). After completing Phases 1-6 of the upgrade plan, the tool definitions are excellent — structured, agent-consumable, and comprehensive with What/When/Output/Assumptions/Composition patterns across all 57 tools. The SKILL.md has been significantly upgraded with exact tool names, Phase 11 (Wait Protocol), and cross-references.
 
 **However, a critical disconnect remains**: the tools deliver capabilities that the skill playbook doesn't tell agents about. Agents compute what the API already provides, use manual polling when event-driven waits exist, and miss automation features like time-based exits and position health enrichment. This audit identifies every gap and provides a prioritized remediation plan.
 

@@ -1,4 +1,4 @@
-# TradeBridge Tool Usage Report: Autonomous Trading Agent "Jesse"
+# MetaTraderBridge Tool Usage Report: Autonomous Trading Agent "Jesse"
 
 **Session**: jesse-session1 | **Strategy**: jesse-breakout-v1
 **Date**: 2026-04-07 | **Duration**: ~2 hours continuous
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-The TradeBridge server is **functionally operational for core market data and order management** but has **critical gaps** that severely limit autonomous trading profitability. The agent spent 95%+ of its cycles in a **polling loop** due to broken wait/delay and wait/price endpoints. The **bracket order endpoint is broken** (500), the **trading log is broken** (500), and **positions_open is unreliable** — three failures that force manual workarounds and destroy the "autonomous hunter" paradigm.
+The MetaTraderBridge server is **functionally operational for core market data and order management** but has **critical gaps** that severely limit autonomous trading profitability. The agent spent 95%+ of its cycles in a **polling loop** due to broken wait/delay and wait/price endpoints. The **bracket order endpoint is broken** (500), the **trading log is broken** (500), and **positions_open is unreliable** — three failures that force manual workarounds and destroy the "autonomous hunter" paradigm.
 
 The good: get_ticks, orders_pending, account_summary, submit_pending_order, cancel_order, and deals_history all work reliably. These are the backbone of the system.
 
@@ -257,7 +257,7 @@ The good: get_ticks, orders_pending, account_summary, submit_pending_order, canc
 
 ---
 
-## 7. Architecture Recommendations for TradeBridge
+## 7. Architecture Recommendations for MetaTraderBridge
 
 ### 7.1 Fix the "Big Three" First
 1. **`place_bracket_order`** — Make it atomic. If one leg fails, cancel the other automatically.
@@ -338,7 +338,7 @@ Current error responses are generic HTTP 500/404. Add structured error bodies:
 
 ## 10. Conclusion
 
-The TradeBridge server provides **excellent market data infrastructure** (ticks, bars, regime analysis, economic calendar) and **reliable order management** (submit pending, cancel, deals history). However, **three critical broken tools** (bracket orders, trading log, price waits) force the agent into an inefficient polling loop that wastes 85%+ of its computational cycles.
+The MetaTraderBridge server provides **excellent market data infrastructure** (ticks, bars, regime analysis, economic calendar) and **reliable order management** (submit pending, cancel, deals history). However, **three critical broken tools** (bracket orders, trading log, price waits) force the agent into an inefficient polling loop that wastes 85%+ of its computational cycles.
 
 **Priority for development team**:
 1. **Fix the Big Three** (bracket orders, trading log, price waits) — these alone would 5x agent efficiency

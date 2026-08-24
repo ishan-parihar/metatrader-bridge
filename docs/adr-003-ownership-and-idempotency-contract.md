@@ -10,7 +10,7 @@ Proposed
 
 ## Context
 
-The TradeBridge system operates in environments where multiple agents, strategies, or human traders may share a single MT5 account. Without a consistent ownership vocabulary and idempotency contract, the system cannot:
+The MetaTraderBridge system operates in environments where multiple agents, strategies, or human traders may share a single MT5 account. Without a consistent ownership vocabulary and idempotency contract, the system cannot:
 
 - Distinguish its own orders, positions, and P&L from foreign activity
 - Safely retry failed writes without creating duplicates
@@ -241,7 +241,7 @@ This section provides concise, linkable definitions for use in the roadmap and o
 
 ## Files Affected (Current + Planned)
 
-- **Read/Reference**: `.sisyphus/plans/TradeBridge-arsenal-upgrade-roadmap.md` (Phases 0.1, 0.2, 1.1, 1.2)
+- **Read/Reference**: `.sisyphus/plans/MetaTraderBridge-arsenal-upgrade-roadmap.md` (Phases 0.1, 0.2, 1.1, 1.2)
 - **Read/Reference**: `skills/mt5-trading/SKILL.md` (Phase 0 ownership guidance)
 - **Read/Reference**: `src/mt5_mcp/services/agent_prompt.py` (session identity injection)
 - **Read/Reference**: `PLAN.md` (§8.1 canonical trade intent, §8.2 execution result)

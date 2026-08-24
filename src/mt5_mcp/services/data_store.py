@@ -1,7 +1,7 @@
 """SQLite-backed cache for historical MT5 data.
 
 Ingests user-exported data (CSV/JSON) and provides date-range queries.
-Data directory: ~/.TradeBridge/data/
+Data directory: ~/.MetaTraderBridge/data/
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ class DataStore:
     def __init__(self, db_path: str | None = None) -> None:
         """Initialize SQLite connection and create tables if needed.
 
-        Default db_path: ~/.TradeBridge/data/historical.db
+        Default db_path: ~/.MetaTraderBridge/data/historical.db
         """
         if db_path is None:
-            data_dir = Path.home() / ".TradeBridge" / "data"
+            data_dir = Path.home() / ".MetaTraderBridge" / "data"
             data_dir.mkdir(parents=True, exist_ok=True)
             db_path = str(data_dir / "historical.db")
 

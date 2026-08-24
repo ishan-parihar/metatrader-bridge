@@ -12,9 +12,9 @@ def get_vibe_trading_dir() -> Path | None:
     env_path = os.getenv("VIBE_TRADING_DIR")
     if env_path:
         return Path(env_path).resolve()
-    # Default: sibling directory to TradeBridge
-    tradebridge_root = Path(__file__).resolve().parent.parent.parent
-    default = (tradebridge_root.parent / "Vibe-Trading" / "agent").resolve()
+    # Default: sibling directory to MetaTraderBridge
+    mtbridge_root = Path(__file__).resolve().parent.parent.parent
+    default = (mtbridge_root.parent / "Vibe-Trading" / "agent").resolve()
     if default.exists():
         return default
     return None

@@ -1,9 +1,9 @@
 [Unit]
-Description=TradeBridge Combined Service (TCP :8025 + MCP :8010)
-Documentation=file:///home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge/deploy/README.md
+Description=MetaTraderBridge Combined Service (TCP :8025 + MCP :8010)
+Documentation=file:///home/ishanp/Documents/GitHub/TRADING-PROJECTS/MetaTraderBridge/deploy/README.md
 After=network.target
 Wants=network-online.target
-# MT5 terminal starts independently; tradebridge listens on :8025 for EA connections
+# MT5 terminal starts independently; metatrader-bridge listens on :8025 for EA connections
 # No strict dependency — TCP bridge accepts connections from EA at any time
 StartLimitIntervalSec=30
 StartLimitBurst=5
@@ -12,8 +12,8 @@ StartLimitBurst=5
 Type=simple
 User=ishanp
 Group=ishanp
-WorkingDirectory=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge
-Environment=PYTHONPATH=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge/src
+WorkingDirectory=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/MetaTraderBridge
+Environment=PYTHONPATH=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/MetaTraderBridge/src
 Environment=PYTHONUNBUFFERED=1
 Environment=MT5_TCP_BRIDGE_PORT=8025
 Environment=MT5_TCP_BRIDGE_HOST=127.0.0.1
@@ -22,12 +22,12 @@ Environment=MT5_TCP_BRIDGE_ENABLED=true
 Environment=MT5_MCP_HOST=127.0.0.1
 Environment=MT5_MCP_PORT=8010
 ExecStartPre=/usr/bin/bash -c 'sleep 2'
-ExecStart=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge/.venv/bin/python -m apps.bridge.main
+ExecStart=/home/ishanp/Documents/GitHub/TRADING-PROJECTS/MetaTraderBridge/.venv/bin/python -m apps.bridge.main
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=tradebridge
+SyslogIdentifier=metatrader-bridge
 
 [Install]
 WantedBy=default.target

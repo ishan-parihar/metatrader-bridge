@@ -9,7 +9,7 @@ services:
     volumes:
       - redis-test-data:/data
     networks:
-      - TradeBridge-test-net
+      - MetaTraderBridge-test-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -33,7 +33,7 @@ services:
     ports:
       - "8024:8025"
     networks:
-      - TradeBridge-test-net
+      - MetaTraderBridge-test-net
     depends_on:
       redis:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
     ports:
       - "8019:8020"
     networks:
-      - TradeBridge-test-net
+      - MetaTraderBridge-test-net
     depends_on:
       redis:
         condition: service_healthy
@@ -75,7 +75,7 @@ services:
     ports:
       - "8009:8010"
     networks:
-      - TradeBridge-test-net
+      - MetaTraderBridge-test-net
     depends_on:
       http-gateway:
         condition: service_healthy
@@ -84,9 +84,9 @@ services:
     restart: unless-stopped
 
 networks:
-  TradeBridge-test-net:
+  MetaTraderBridge-test-net:
     driver: bridge
-    name: TradeBridge-test-net
+    name: MetaTraderBridge-test-net
 
 volumes:
   redis-test-data:

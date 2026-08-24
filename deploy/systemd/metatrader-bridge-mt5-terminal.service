@@ -1,6 +1,6 @@
 [Unit]
-Description=TradeBridge MT5 Terminal (Bottles/Wine)
-Documentation=file:///home/ishanp/Documents/GitHub/TRADING-PROJECTS/TradeBridge/deploy/README.md
+Description=MetaTraderBridge MT5 Terminal (Bottles/Wine)
+Documentation=file:///home/ishanp/Documents/GitHub/TRADING-PROJECTS/MetaTraderBridge/deploy/README.md
 After=network.target graphical-session.target
 Wants=network-online.target
 StartLimitIntervalSec=120
@@ -18,7 +18,7 @@ RestartSteps=5
 RestartMaxDelaySec=120
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=tradebridge-mt5
+SyslogIdentifier=metatrader-bridge-mt5
 
 [Install]
 WantedBy=default.target

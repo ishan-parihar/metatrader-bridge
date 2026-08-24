@@ -1,4 +1,4 @@
-"""End-to-end integration tests for Vibe-Trading <-> TradeBridge signal pipeline.
+"""End-to-end integration tests for Vibe-Trading <-> MetaTraderBridge signal pipeline.
 
 Tests the full signal flow: swarm report -> signal extraction -> order params,
 backtest results -> viability signal, tool wrappers, gateway routes, and

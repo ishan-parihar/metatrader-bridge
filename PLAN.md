@@ -459,7 +459,7 @@ This gateway can be reached by:
 ## 11) Suggested repository layout
 
 ```text
-TradeBridge-bridge/
+MetaTraderBridge-bridge/
 ├── apps/
 │   ├── mcp-server/
 │   ├── bridge-gateway/
@@ -685,7 +685,7 @@ Only acceptable after successful burn-in tests.
 ## 18) Runtime processes and systemd units
 
 Suggested Linux services:
-- `TradeBridge-server.service`
+- `metatrader-bridge.service`
 - `mt5-policy.service`
 - `mt5-analytics.service`
 - `mt5-bridge-gateway.service`

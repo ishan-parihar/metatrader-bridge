@@ -1,4 +1,4 @@
-"""Shared infrastructure for the TradeBridge FastMCP server.
+"""Shared infrastructure for the MetaTraderBridge FastMCP server.
 
 Provides lazy-loaded singletons (TCP client, gateway, HTTP client, settings),
 bridge communication helpers, payload parsers, and freeze state management.

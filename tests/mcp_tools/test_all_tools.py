@@ -1,4 +1,4 @@
-"""Comprehensive production-grade test suite for all TradeBridge tools.
+"""Comprehensive production-grade test suite for all MetaTraderBridge tools.
 
 Tests each tool for:
 1. Registration — tool exists and is callable
@@ -924,7 +924,7 @@ class TestProductionReadiness:
         from apps.mcp_server import create_mcp_server
 
         server = create_mcp_server()
-        assert server.name == "TradeBridge"
+        assert server.name == "MetaTraderBridge"
 
     def test_no_circular_imports(self):
         """All tool modules must import without circular dependency errors."""

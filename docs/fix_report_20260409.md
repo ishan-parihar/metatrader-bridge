@@ -1,4 +1,4 @@
-# TradeBridge Comprehensive Codebase Audit — Fix Report
+# MetaTraderBridge Comprehensive Codebase Audit — Fix Report
 
 **Date**: 2026-04-09 (Fix Report)
 **Original Audit**: `docs/comprehensive_audit_report_20260409.md` (19 bugs)

@@ -1,4 +1,4 @@
-# TradeBridge Upgrade Mandate
+# MetaTraderBridge Upgrade Mandate
 
 > Generated: 2026-04-08 | Source: Live Trading Session Post-Mortem (05:09–15:30 UTC)
 > Account: Exness-MT5Trial17 (Demo) | Starting: $147.28 | Session Result: -$2.90 net (5 trades, 1 win, 4 losses)
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Today's 10-hour trading session exposed **10 tool-level gaps** in TradeBridge that directly caused or amplified trading losses. The most critical: `positions_open()` returning empty arrays while positions were actively open (3 occurrences), no server-side auto-trailing (causing a $12 missed profit on a single trade), and no correlation awareness (3 correlated brackets filled simultaneously). With the proposed fixes, today's session P&L would have improved from **-$2.90 to approximately +$14.36** — a 10% account gain from the exact same setups, purely through better tooling. The setups were sound. The tools couldn't support disciplined execution.
+Today's 10-hour trading session exposed **10 tool-level gaps** in MetaTraderBridge that directly caused or amplified trading losses. The most critical: `positions_open()` returning empty arrays while positions were actively open (3 occurrences), no server-side auto-trailing (causing a $12 missed profit on a single trade), and no correlation awareness (3 correlated brackets filled simultaneously). With the proposed fixes, today's session P&L would have improved from **-$2.90 to approximately +$14.36** — a 10% account gain from the exact same setups, purely through better tooling. The setups were sound. The tools couldn't support disciplined execution.
 
 ---
 

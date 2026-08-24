@@ -1,5 +1,5 @@
 #!/bin/bash
-# TradeBridge MT5 Terminal — Headless Wine + Xvfb startup
+# MetaTraderBridge MT5 Terminal — Headless Wine + Xvfb startup
 # MT5 installs at first run (persists to /config volume)
 set -e
 
@@ -9,18 +9,19 @@ set -e
 : "${MT5_BROKER_LOGIN:=}"
 : "${MT5_BROKER_PASSWORD:=}"
 : "${MT5_BROKER_SERVER:=MetaQuotes-Demo}"
-: "${EA_TCP_HOST:=tradebridge}"
+: "${EA_TCP_HOST:=metatrader-bridge}"
 : "${EA_TCP_PORT:=8025}"
 : "${MT5_CMD_OPTIONS:=}"
 : "${MT5_ENABLE_VNC:=}"
+: "${MT5_ENABLE_NOVNC:=}"
 
 MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 MT5_EXE="$MT5_DIR/terminal64.exe"
 MONO_URL="https://dl.winehq.org/wine/wine-mono/10.3.0/wine-mono-10.3.0-x86.msi"
-EA_SRC="/opt/tradebridge/ea"
+EA_SRC="/opt/metatrader-bridge/ea"
 
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  TradeBridge MT5 Terminal — Headless Wine Container     ║"
+echo "║  MetaTraderBridge MT5 Terminal — Headless Wine Container     ║"
 echo "║  Broker:   $MT5_BROKER_SERVER                           "
 echo "║  EA:       $EA_TCP_HOST:$EA_TCP_PORT                    "
 echo "║  Wine:     $(wine --version 2>/dev/null || echo '?')    "
@@ -54,15 +55,15 @@ if [ ! -f "$WINEPREFIX/system.reg" ]; then
 
 	# Deploy pre-authenticated Botles config (registry + MT5 accounts/servers)
 	# This makes MT5 auto-login to Exness without manual GUI auth
-	if [ -d "/opt/tradebridge/bottles-config" ]; then
+	if [ -d "/opt/metatrader-bridge/bottles-config" ]; then
 		echo "[3] Deploying pre-authenticated Bottles config..."
-		cp -f /opt/tradebridge/bottles-config/user.reg "$WINEPREFIX/" 2>/dev/null || true
-		cp -f /opt/tradebridge/bottles-config/system.reg "$WINEPREFIX/" 2>/dev/null || true
-		cp -f /opt/tradebridge/bottles-config/userdef.reg "$WINEPREFIX/" 2>/dev/null || true
+		cp -f /opt/metatrader-bridge/bottles-config/user.reg "$WINEPREFIX/" 2>/dev/null || true
+		cp -f /opt/metatrader-bridge/bottles-config/system.reg "$WINEPREFIX/" 2>/dev/null || true
+		cp -f /opt/metatrader-bridge/bottles-config/userdef.reg "$WINEPREFIX/" 2>/dev/null || true
 		# Deploy MT5 Config (accounts.dat + servers.dat)
 		MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 		mkdir -p "$MT5_DIR/Config"
-		cp -f /opt/tradebridge/bottles-config/Config/* "$MT5_DIR/Config/" 2>/dev/null || true
+		cp -f /opt/metatrader-bridge/bottles-config/Config/* "$MT5_DIR/Config/" 2>/dev/null || true
 		echo "[3] Bottles config deployed"
 	fi
 else
@@ -88,11 +89,11 @@ else
 	echo "[5] Setting Wine to Windows 10 mode..."
 	wine winecfg -v win10 2>/dev/null || true
 	mkdir -p "$MT5_DIR"
-	if [ -d "/opt/tradebridge/mt5" ]; then
-		cp -r /opt/tradebridge/mt5/* "$MT5_DIR/"
+	if [ -d "/opt/metatrader-bridge/mt5" ]; then
+		cp -r /opt/metatrader-bridge/mt5/* "$MT5_DIR/"
 		echo "[5] MT5 binaries copied ($(du -sh "$MT5_DIR" | cut -f1))"
 	else
-		echo "[5] ERROR: No MT5 binaries at /opt/tradebridge/mt5"
+		echo "[5] ERROR: No MT5 binaries at /opt/metatrader-bridge/mt5"
 	fi
 	if [ -f "$MT5_EXE" ]; then
 		echo "[5] MT5 ready: $MT5_EXE"
@@ -101,13 +102,13 @@ else
 	fi
 fi
 
-# ── Step 6: Install + patch TradeBridge EA ───────────────────────────────────
+# ── Step 6: Install + patch MetaTraderBridge EA ───────────────────────────────────
 EA_DIR="$MT5_DIR/MQL5/Experts"
-mkdir -p "$EA_DIR/TradeBridge"
+mkdir -p "$EA_DIR/MetaTraderBridge"
 if [ -d "$EA_SRC" ]; then
 	cp "$EA_SRC/BridgeConnectorEA.ex5" "$EA_DIR/" 2>/dev/null || true
-	cp "$EA_SRC"/*.mq5 "$EA_DIR/TradeBridge/" 2>/dev/null || true
-	cp "$EA_SRC"/*.mqh "$EA_DIR/TradeBridge/" 2>/dev/null || true
+	cp "$EA_SRC"/*.mq5 "$EA_DIR/MetaTraderBridge/" 2>/dev/null || true
+	cp "$EA_SRC"/*.mqh "$EA_DIR/MetaTraderBridge/" 2>/dev/null || true
 	chmod -R 755 "$EA_DIR"
 	echo "[6] Patching EA binary: 127.0.0.1 → $EA_TCP_HOST ..."
 	sed -i "s/127\.0\.0\.1/$EA_TCP_HOST/g" "$EA_DIR/BridgeConnectorEA.ex5" 2>/dev/null || true
@@ -122,7 +123,7 @@ else
 	echo "[6] WARNING: EA source directory $EA_SRC not found"
 fi
 
-# ── Step 7: Wait for TradeBridge TCP bridge ──────────────────────────────────
+# ── Step 7: Wait for MetaTraderBridge TCP bridge ──────────────────────────────────
 echo "[7] Waiting for TCP Bridge at $EA_TCP_HOST:$EA_TCP_PORT..."
 for i in $(seq 1 60); do
 	if nc -z "$EA_TCP_HOST" "$EA_TCP_PORT" 2>/dev/null; then
@@ -234,8 +235,8 @@ fi
 # ── Step 8d: mt5linux bridge + Wine Python → MetaTrader5 login ─────────
 if [ -n "$MT5_BROKER_LOGIN" ] && [ -n "$MT5_BROKER_PASSWORD" ]; then
 	PY311="$WINEPREFIX/drive_c/Python311/python.exe"
-	PY_ZIP="/opt/tradebridge/python-embed.zip"
-	GET_PIP="/opt/tradebridge/get-pip.py"
+	PY_ZIP="/opt/metatrader-bridge/python-embed.zip"
+	GET_PIP="/opt/metatrader-bridge/get-pip.py"
 	echo "[8d] mt5linux bridge for MT5 login..."
 
 	# Setup Wine Python 3.11 + MetaTrader5

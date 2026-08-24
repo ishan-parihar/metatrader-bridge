@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Headless MetaTrader 5 Terminal for TradeBridge
+# Headless MetaTrader 5 Terminal for MetaTraderBridge
 #
 # Design: MT5 + tools install at runtime (faster Docker build, persistent volume)
 # Based on patterns from gmag11/MetaTrader5-Docker but without KasmVNC (~3 GB saved)
@@ -8,7 +8,7 @@
 # Ports:
 #   5900   — VNC (optional, set MT5_ENABLE_VNC=1)
 #   8001   — mt5linux RPyC bridge (optional Python API access)
-#   8025   — TCP Bridge connection (EA → TradeBridge)
+#   8025   — TCP Bridge connection (EA → MetaTraderBridge)
 
 FROM debian:bookworm-slim
 
@@ -18,9 +18,9 @@ ENV WINEPREFIX=/config/.wine \
     WINEDEBUG=-all \
     DISPLAY=:99 \
     DEBIAN_FRONTEND=noninteractive \
-    TITLE=TradeBridge-MT5
+    TITLE=MetaTraderBridge-MT5
 
-WORKDIR /opt/tradebridge
+WORKDIR /opt/metatrader-bridge
 
 # ============================================================================
 # Install WineHQ + Xvfb + utilities (no Wine runtime ops during build)
@@ -57,42 +57,53 @@ RUN mkdir -pm755 /etc/apt/keyrings && \
 RUN rm -f /etc/apt/keyrings/winehq-archive.key
 
 # ============================================================================
+# noVNC + websockify (browser-based VNC client)
+# ============================================================================
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        novnc \
+        websockify \
+        python3-numpy \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
 # MT5 binaries (pre-copied from host Bottles installation, avoids installer)
 # ============================================================================
-COPY deploy/mt5-terminal/mt5-bin/ /opt/tradebridge/mt5/
+COPY deploy/mt5-terminal/mt5-bin/ /opt/metatrader-bridge/mt5/
 
 # ============================================================================
 # Pre-cache Python 3.11 embeddable for Wine (works with MetaTrader5 pip)
 # ============================================================================
-RUN wget -q "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip" -O /opt/tradebridge/python-embed.zip && \
-    wget -q "https://bootstrap.pypa.io/get-pip.py" -O /opt/tradebridge/get-pip.py && \
-    echo "Python 3.11 embeddable cached ($(du -h /opt/tradebridge/python-embed.zip | cut -f1))"
+RUN wget -q "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip" -O /opt/metatrader-bridge/python-embed.zip && \
+    wget -q "https://bootstrap.pypa.io/get-pip.py" -O /opt/metatrader-bridge/get-pip.py && \
+    echo "Python 3.11 embeddable cached ($(du -h /opt/metatrader-bridge/python-embed.zip | cut -f1))"
 
 # ============================================================================
 # Pre-authenticated Bottles config (registry + accounts.dat + server list)
 # Makes MT5 auto-login to Exness with existing session state
 # ============================================================================
-COPY deploy/mt5-terminal/bottles-config/ /opt/tradebridge/bottles-config/
+COPY deploy/mt5-terminal/bottles-config/ /opt/metatrader-bridge/bottles-config/
 
 # ============================================================================
-# Copy TradeBridge EA files (pre-compiled .ex5 + source)
+# Copy MetaTraderBridge EA files (pre-compiled .ex5 + source)
 # ============================================================================
-COPY deploy/mt5-terminal/BridgeConnectorEA.ex5 /opt/tradebridge/ea/
-COPY deploy/mt5-terminal/BridgeConnectorEA.mq5 /opt/tradebridge/ea/
-COPY deploy/mt5-terminal/BracketManager.mqh /opt/tradebridge/ea/
-COPY deploy/mt5-terminal/PositionTimeManager.mqh /opt/tradebridge/ea/
-COPY deploy/mt5-terminal/TrailingStopManager.mqh /opt/tradebridge/ea/
+COPY deploy/mt5-terminal/BridgeConnectorEA.ex5 /opt/metatrader-bridge/ea/
+COPY deploy/mt5-terminal/BridgeConnectorEA.mq5 /opt/metatrader-bridge/ea/
+COPY deploy/mt5-terminal/BracketManager.mqh /opt/metatrader-bridge/ea/
+COPY deploy/mt5-terminal/PositionTimeManager.mqh /opt/metatrader-bridge/ea/
+COPY deploy/mt5-terminal/TrailingStopManager.mqh /opt/metatrader-bridge/ea/
 
 # ============================================================================
 # Startup script
 # ============================================================================
-COPY deploy/mt5-terminal/start.sh /opt/tradebridge/start.sh
-RUN chmod +x /opt/tradebridge/start.sh
+COPY deploy/mt5-terminal/start.sh /opt/metatrader-bridge/start.sh
+RUN chmod +x /opt/metatrader-bridge/start.sh
 
 # ============================================================================
 # Volumes and ports
 # ============================================================================
 VOLUME /config
-EXPOSE 5900 8001 8025
+# 5900 = VNC, 6080 = noVNC web interface, 8001 = mt5linux RPyC, 8025 = TCP Bridge
+EXPOSE 5900 6080 8001 8025
 
-CMD ["/opt/tradebridge/start.sh"]
+CMD ["/opt/metatrader-bridge/start.sh"]

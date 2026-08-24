@@ -5,7 +5,7 @@
 #property strict
 #property script_show_inputs
 
-input string EA_TCP_Host = "tradebridge";
+input string EA_TCP_Host = "metatrader-bridge";
 input int    EA_TCP_Port = 8025;
 
 void OnStart()

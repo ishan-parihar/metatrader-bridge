@@ -1,4 +1,4 @@
-# TradeBridge
+# MetaTraderBridge
 
 A production-ready bridge between MetaTrader 5 and Model Context Protocol (MCP), enabling AI-driven trading analysis and execution on Linux systems. Runs as a single combined container or a full stack with a headless MT5 terminal in Docker.
 
@@ -30,7 +30,7 @@ The SKILL.md contains everything an AI trading agent needs:
                                                         │
                                                         ▼
         ┌───────────────────────────────────────────────────┐
-        │         TradeBridge Unified Server (:8010)        │
+        │         MetaTraderBridge Unified Server (:8010)        │
         │                                                   │
         │  HTTP/MCP Server                                  │
         │  ├── FastMCP SSE (/mcp) — 91 MCP tools            │
@@ -76,14 +76,14 @@ The SKILL.md contains everything an AI trading agent needs:
 - Docker and Docker Compose
 - MT5 broker account credentials (optional, for trading)
 
-### Single-container TradeBridge (Python services only)
+### Single-container MetaTraderBridge (Python services only)
 
 ```bash
 # Build the combined image
-docker build -f deploy/Dockerfile --target combined-target -t tradebridge:latest .
+docker build -f deploy/Dockerfile --target combined-target -t metatrader-bridge:latest .
 
 # Start with Redis
-docker compose -f deploy/docker-compose.full.yml up -d redis tradebridge
+docker compose -f deploy/docker-compose.full.yml up -d redis metatrader-bridge
 
 # Verify health
 curl http://localhost:8010/health
@@ -94,7 +94,7 @@ curl http://localhost:8010/health
 
 ```bash
 # Build both images
-docker build -f deploy/Dockerfile --target combined-target -t tradebridge:latest .
+docker build -f deploy/Dockerfile --target combined-target -t metatrader-bridge:latest .
 docker build -f deploy/mt5-terminal/Dockerfile -t mt5-terminal:latest .
 
 # Set broker credentials (optional)
@@ -113,7 +113,7 @@ docker logs mt5-terminal --tail 20 -f
 
 | Service | RSS | Container | Purpose |
 |---------|-----|-----------|---------|
-| TradeBridge | **64 MB** | 1 container | HTTP/MCP (:8010) + TCP bridge (:8025) |
+| MetaTraderBridge | **64 MB** | 1 container | HTTP/MCP (:8010) + TCP bridge (:8025) |
 | MT5 Terminal | **210 MB** | 1 container | WineHQ 11 + Xvfb + MT5 EA |
 | Redis | **9 MB** | 1 container | Message queue / cache |
 | **Total** | **~283 MB** | **3 containers** | |
@@ -122,15 +122,15 @@ docker logs mt5-terminal --tail 20 -f
 
 ```bash
 # Clone and build
-git clone git@github.com:ishan-parihar/TradeBridge.git /opt/TradeBridge
-cd /opt/TradeBridge
-docker build -f deploy/Dockerfile --target combined-target -t tradebridge:latest .
-docker compose -f deploy/docker-compose.full.yml up -d redis tradebridge
+git clone git@github.com:ishan-parihar/MetaTraderBridge.git /opt/MetaTraderBridge
+cd /opt/MetaTraderBridge
+docker build -f deploy/Dockerfile --target combined-target -t metatrader-bridge:latest .
+docker compose -f deploy/docker-compose.full.yml up -d redis metatrader-bridge
 
 # Register with Hermes (MCP server manager)
 # ~/.hermes/config.yaml:
 # mcp_servers:
-#   tradebridge:
+#   metatrader-bridge:
 #     type: http
 #     url: http://localhost:8010
 #     description: "MT5 Trading Bridge — positions, orders, analysis, market data"
@@ -141,18 +141,18 @@ docker compose -f deploy/docker-compose.full.yml up -d redis tradebridge
 Requires Python 3.11+, Poetry, and MT5 under Wine/Bottles.
 
 ```bash
-git clone https://github.com/ishanp321/TradeBridge.git
-cd TradeBridge
+git clone https://github.com/ishanp321/MetaTraderBridge.git
+cd MetaTraderBridge
 poetry install
 
 # Single unified process (all services on ports 8010 + 8025):
 poetry run python -m apps.bridge.main
 
 # Or install as systemd service:
-sudo cp deploy/systemd/tradebridge.service /etc/systemd/system/
+sudo cp deploy/systemd/metatrader-bridge.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable tradebridge.service
-sudo systemctl start tradebridge.service
+sudo systemctl enable metatrader-bridge.service
+sudo systemctl start metatrader-bridge.service
 ```
 
 ### EA Setup (for Bottles/Wine)
@@ -165,7 +165,7 @@ sudo systemctl start tradebridge.service
 ## Project Structure
 
 ```
-TradeBridge/
+MetaTraderBridge/
 ├── apps/
 │   ├── bridge/main.py              # Entry point: TCP bridge + HTTP/MCP (1 process)
 │   ├── mcp_server/main.py          # MCP server (:8010) — FastMCP + REST + gateway
@@ -182,7 +182,7 @@ TradeBridge/
 │   └── observability/              # Logging & metrics
 ├── deploy/
 │   ├── Dockerfile                  # Combined & per-service Docker targets
-│   ├── docker-compose.full.yml     # Full stack: redis + tradebridge + mt5-terminal
+│   ├── docker-compose.full.yml     # Full stack: redis + metatrader-bridge + mt5-terminal
 │   ├── docker-compose.yml          # Separate services (legacy)
 │   ├── mt5-terminal/
 │   │   ├── Dockerfile              # Headless MT5 (WineHQ 11 + Xvfb)
@@ -197,8 +197,8 @@ TradeBridge/
 
 ```bash
 # Build targets
-docker build --target combined-target     -t tradebridge:latest .    # All-in-one (recommended)
-docker build --target mcp-server-target   -t tradebridge-mcp:latest .
+docker build --target combined-target     -t metatrader-bridge:latest .    # All-in-one (recommended)
+docker build --target mcp-server-target   -t metatrader-bridge-mcp:latest .
 docker build -f deploy/mt5-terminal/Dockerfile -t mt5-terminal:latest .
 
 # Configuration via environment variables
@@ -278,7 +278,7 @@ curl http://localhost:8010/health
 
 ## Related Projects
 
-- **[Jesse](https://github.com/ishanp321/jesse)** — Autonomous AI Trading Agent (LangChain ReAct) consuming TradeBridge as trading backend
+- **[Jesse](https://github.com/ishanp321/jesse)** — Autonomous AI Trading Agent (LangChain ReAct) consuming MetaTraderBridge as trading backend
 
 ## License
 

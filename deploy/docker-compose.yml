@@ -9,7 +9,7 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - TradeBridge-net
+      - MetaTraderBridge-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -40,7 +40,7 @@ services:
     ports:
       - "${MT5_TCP_BRIDGE_PORT:-8025}:8025"
     networks:
-      - TradeBridge-net
+      - MetaTraderBridge-net
     depends_on:
       redis:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     ports:
       - "${MT5_GATEWAY_PORT:-8020}:8020"
     networks:
-      - TradeBridge-net
+      - MetaTraderBridge-net
     depends_on:
       redis:
         condition: service_healthy
@@ -86,7 +86,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       target: mcp-server-target
-    container_name: TradeBridge-server
+    container_name: MetaTraderBridge-server
     environment:
       - MT5_GATEWAY_URL=http://http-gateway:8020
       - MT5_REDIS_URL=redis://redis:6379/0
@@ -96,7 +96,7 @@ services:
     ports:
       - "${MT5_MCP_SERVER_PORT:-8010}:8010"
     networks:
-      - TradeBridge-net
+      - MetaTraderBridge-net
     depends_on:
       http-gateway:
         condition: service_healthy
@@ -112,9 +112,9 @@ services:
           memory: 64M
 
 networks:
-  TradeBridge-net:
+  MetaTraderBridge-net:
     driver: bridge
-    name: TradeBridge-net
+    name: MetaTraderBridge-net
 
 volumes:
   redis-data:

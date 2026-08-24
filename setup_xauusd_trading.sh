@@ -1,8 +1,8 @@
 #!/bin/bash
-# Setup script for XAUUSD trading with TradeBridge bridge
+# Setup script for XAUUSD trading with MetaTraderBridge bridge
 # This script helps diagnose and fix common issues
 
-echo "=== TradeBridge Bridge Diagnostic Tool ==="
+echo "=== MetaTraderBridge Bridge Diagnostic Tool ==="
 echo ""
 
 # Check if services are running
@@ -11,7 +11,7 @@ if curl -s http://127.0.0.1:8010/health > /dev/null 2>&1; then
     echo "   ✓ MCP Server is running on port 8010"
 else
     echo "   ✗ MCP Server is NOT running"
-    echo "   Start with: cd /home/ishanp/Documents/GitHub/TradeBridge && .venv/bin/python -m uvicorn apps.mcp_server.main:app --host 127.0.0.1 --port 8010"
+    echo "   Start with: cd /home/ishanp/Documents/GitHub/MetaTraderBridge && .venv/bin/python -m uvicorn apps.mcp_server.main:app --host 127.0.0.1 --port 8010"
 fi
 
 echo ""
@@ -26,7 +26,7 @@ if curl -s http://127.0.0.1:8020/bridge/terminal/status > /dev/null 2>&1; then
     fi
 else
     echo "   ✗ Bridge Gateway is NOT running"
-    echo "   Start with: cd /home/ishanp/Documents/GitHub/TradeBridge && .venv/bin/python -m uvicorn apps.bridge_gateway.main:app --host 127.0.0.1 --port 8020"
+    echo "   Start with: cd /home/ishanp/Documents/GitHub/MetaTraderBridge && .venv/bin/python -m uvicorn apps.bridge_gateway.main:app --host 127.0.0.1 --port 8020"
 fi
 
 echo ""

@@ -1,5 +1,5 @@
 """
-Analysis MCP tools for the standalone TradeBridge Analysis server.
+Analysis MCP tools for the standalone MetaTraderBridge Analysis server.
 
 Uses BridgeProtocol to communicate with the TCP bridge (port 8026)
 instead of the in-process shared.py singleton. This makes the analysis

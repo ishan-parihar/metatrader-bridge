@@ -1,4 +1,4 @@
-# TradeBridge Comprehensive Codebase Audit — Second Pass
+# MetaTraderBridge Comprehensive Codebase Audit — Second Pass
 
 **Date**: 2026-04-09 (Second Pass)
 **Scope**: All Python source files in `apps/`, `src/`, `tools/`

@@ -66,7 +66,7 @@ def mt5_agent_context(
     """Agent-to-agent communication channel using an in-process in-memory message board.
 
     Use this tool when multiple AI agents need to coordinate or share state
-    through the TradeBridge server. The message board is purely in-memory
+    through the MetaTraderBridge server. The message board is purely in-memory
     (no persistence, no bridge calls) and supports four actions:
 
       - "status":  Returns pending message count and basic info (default).

@@ -1,6 +1,6 @@
-# TradeBridge Deployment Guide
+# MetaTraderBridge Deployment Guide
 
-Production deployment files for the 3-process TradeBridge architecture.
+Production deployment files for the 3-process MetaTraderBridge architecture.
 
 ## Architecture
 
@@ -65,14 +65,14 @@ docker compose up -d --force-recreate http-gateway
 
 - Linux system with systemd (Ubuntu 22.04+, Debian 12+, RHEL 9+)
 - Python 3.11+
-- Project cloned to `/opt/TradeBridge`
+- Project cloned to `/opt/MetaTraderBridge`
 
 ### Install
 
 ```bash
 # Clone to target directory
-sudo git clone <repo-url> /opt/TradeBridge
-cd /opt/TradeBridge
+sudo git clone <repo-url> /opt/MetaTraderBridge
+cd /opt/MetaTraderBridge
 
 # Install dependencies
 python3 -m venv .venv
@@ -89,7 +89,7 @@ sudo deploy/systemd/install.sh
 # Check status
 systemctl status mt5-tcp-bridge
 systemctl status mt5-http-gateway
-systemctl status TradeBridge-server
+systemctl status MetaTraderBridge-server
 
 # Restart
 sudo systemctl restart mt5-tcp-bridge
@@ -97,17 +97,17 @@ sudo systemctl restart mt5-tcp-bridge
 # View logs
 journalctl -u mt5-tcp-bridge -f
 journalctl -u mt5-http-gateway -f
-journalctl -u TradeBridge-server -f
+journalctl -u MetaTraderBridge-server -f
 ```
 
 ### Upgrade
 
 ```bash
-cd /opt/TradeBridge
+cd /opt/MetaTraderBridge
 sudo git pull
 .venv/bin/poetry install --no-interaction --without dev
 
-sudo systemctl restart mt5-tcp-bridge mt5-http-gateway TradeBridge-server
+sudo systemctl restart mt5-tcp-bridge mt5-http-gateway MetaTraderBridge-server
 ```
 
 ## Environment Variables
@@ -184,7 +184,7 @@ Logs go to journald, accessible via:
 ```bash
 journalctl -u mt5-tcp-bridge --since "1 hour ago"
 journalctl -u mt5-http-gateway -e --no-pager
-journalctl -u TradeBridge-server -f
+journalctl -u MetaTraderBridge-server -f
 ```
 
 ### Application Log Files
@@ -222,7 +222,7 @@ curl -s http://127.0.0.1:8020/bridge/terminal/status
 
 ```bash
 # From MCP server container (Docker)
-docker exec TradeBridge-server curl -s http://http-gateway:8020/bridge/health
+docker exec MetaTraderBridge-server curl -s http://http-gateway:8020/bridge/health
 
 # On bare metal
 curl -s http://127.0.0.1:8020/bridge/health
@@ -232,18 +232,18 @@ curl -s http://127.0.0.1:8020/bridge/health
 
 ```bash
 # Reinstall dependencies
-cd /opt/TradeBridge
+cd /opt/MetaTraderBridge
 .venv/bin/poetry install --no-interaction --without dev
 
 # Restart
-sudo systemctl restart mt5-tcp-bridge mt5-http-gateway TradeBridge-server
+sudo systemctl restart mt5-tcp-bridge mt5-http-gateway MetaTraderBridge-server
 ```
 
 ### Permission Denied Errors
 
 ```bash
 # Fix ownership
-sudo chown -R mt5-bridge:mt5-bridge /opt/TradeBridge
+sudo chown -R mt5-bridge:mt5-bridge /opt/MetaTraderBridge
 ```
 
 ## Resource Usage

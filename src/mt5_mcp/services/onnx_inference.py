@@ -1,6 +1,6 @@
 """ONNX Model Inference Service — loads .onnx files and runs trading predictions.
 
-Auto-discovers models in ~/.TradeBridge/models/ on startup.
+Auto-discovers models in ~/.MetaTraderBridge/models/ on startup.
 Supports both classification (multi-output) and regression (single-output) models.
 GPU-accelerated when CUDA is available, falls back to CPU.
 """
@@ -26,10 +26,10 @@ class ONNXInferenceService:
 
         Args:
             models_dir: Directory containing .onnx model files.
-                Defaults to ~/.TradeBridge/models/
+                Defaults to ~/.MetaTraderBridge/models/
         """
         if models_dir is None:
-            models_dir = str(Path.home() / ".TradeBridge" / "models")
+            models_dir = str(Path.home() / ".MetaTraderBridge" / "models")
         self._models_dir = models_dir
         self._models: dict[str, str] = {}
         self._sessions: dict[str, Any] = {}

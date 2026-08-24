@@ -111,7 +111,7 @@ async def vibe_backtest(run_dir: str) -> str:
 
     Use to validate a trading strategy against historical data before
     deploying live. The backtest runs on the Vibe-Trading side, not
-    within TradeBridge.
+    within MetaTraderBridge.
 
     Args:
         run_dir (str): Absolute path to the backtest directory on the
@@ -127,7 +127,7 @@ async def vibe_backtest(run_dir: str) -> str:
     Note: Requires the external Vibe-Trading MCP server process to be
     running. Backtesting is executed remotely — the run_dir path must
     be accessible from the Vibe-Trading server's filesystem, not the
-    TradeBridge host. Ensure config.json and signal_engine.py exist
+    MetaTraderBridge host. Ensure config.json and signal_engine.py exist
     and are valid.
     """
     return await vibe_tools.vibe_backtest(run_dir)
@@ -135,7 +135,7 @@ async def vibe_backtest(run_dir: str) -> str:
 
 @mcp.tool(name="vibe_swarm_to_signal", annotations=_VIBE_ANNOTATIONS)
 async def vibe_swarm_to_signal(report: str, preset: str = "") -> str:
-    """Convert a Vibe-Trading swarm analysis report into a structured TradeBridge trade signal.
+    """Convert a Vibe-Trading swarm analysis report into a structured MetaTraderBridge trade signal.
 
     Use after vibe_run_swarm to transform the multi-agent consensus into
     actionable order parameters. This is the bridge between AI analysis
@@ -149,7 +149,7 @@ async def vibe_swarm_to_signal(report: str, preset: str = "") -> str:
             for auto-detection.
 
     Returns:
-        str: Structured trade signal with TradeBridge-compatible order
+        str: Structured trade signal with MetaTraderBridge-compatible order
             parameters: direction (BUY/SELL), entry price, stop-loss (SL),
             take-profit (TP), position size suggestion, and reasoning summary.
 

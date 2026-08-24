@@ -1,4 +1,4 @@
-"""MCP Wait Tools — Price checking tools for TradeBridge.
+"""MCP Wait Tools — Price checking tools for MetaTraderBridge.
 
 The MCP client enforces a ~60s timeout on tool calls, which prevents
 long-polling strategies. This module provides a single-shot price check

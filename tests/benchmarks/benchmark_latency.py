@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E2E latency benchmark: TCP vs HTTP transport for TradeBridge bridge.
+"""E2E latency benchmark: TCP vs HTTP transport for MetaTraderBridge bridge.
 
 Measures round-trip latency for common commands over both transports.
 Supports live mode (real MT5 bridge) and mock mode (local echo servers).
@@ -620,7 +620,7 @@ def print_diagnostics(results: list[BenchmarkResult]) -> None:
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="E2E latency benchmark: TCP vs HTTP for TradeBridge bridge",
+        description="E2E latency benchmark: TCP vs HTTP for MetaTraderBridge bridge",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -686,7 +686,7 @@ def main():
         tcp_port = 18025
         http_port = 18020
 
-    print(f"TradeBridge Bridge Latency Benchmark")
+    print(f"MetaTraderBridge Bridge Latency Benchmark")
     print(f"  Mode:        {mode}")
     print(f"  Iterations:  {iterations} (+ {warmup} warmup)")
     print(f"  Symbol:      {symbol}")

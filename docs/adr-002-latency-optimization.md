@@ -1,11 +1,11 @@
-# ADR-002: Latency Optimization for TradeBridge Trading System
+# ADR-002: Latency Optimization for MetaTraderBridge Trading System
 
 ## Status
 Accepted
 
 ## Context
 
-The TradeBridge trading system had critical latency issues that made it unsuitable for time-critical market navigation. The request chain was:
+The MetaTraderBridge trading system had critical latency issues that made it unsuitable for time-critical market navigation. The request chain was:
 
 ```
 AI Agent → MCP Wrapper (stdio) → HTTP :8010 → HTTP :8020 → EA Bridge

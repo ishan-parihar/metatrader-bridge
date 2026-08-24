@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "TradeBridge"
+name = "MetaTraderBridge"
 version = "0.1.0"
 description = "MetaTrader 5 ↔ MCP bridge (scaffold)"
-authors = ["TradeBridge R&D <devnull@example.com>"]
+authors = ["MetaTraderBridge R&D <devnull@example.com>"]
 readme = "README.md"
 packages = [{ include = "mt5_mcp", from = "src" }, { include = "apps" }]
 

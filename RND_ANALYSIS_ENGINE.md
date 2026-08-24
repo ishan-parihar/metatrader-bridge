@@ -1,6 +1,6 @@
 # R&D Recommendation: Analysis Engine Enhancements
 
-**Source:** Legacy Chinese Quant System Audit → TradeBridge Integration Opportunities  
+**Source:** Legacy Chinese Quant System Audit → MetaTraderBridge Integration Opportunities  
 **Date:** April 9, 2026  
 **Status:** Recommendations for review
 
@@ -8,9 +8,9 @@
 
 ## Executive Summary
 
-A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant/`, 1011-line CLI with 25 tools across scoring, sentiment, capital flow, and market analysis) reveals **5 high-value features** worth porting to TradeBridge and **12 features already surpassed** by the current TradeBridge implementation.
+A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant/`, 1011-line CLI with 25 tools across scoring, sentiment, capital flow, and market analysis) reveals **5 high-value features** worth porting to MetaTraderBridge and **12 features already surpassed** by the current MetaTraderBridge implementation.
 
-**Bottom line:** TradeBridge is the more capable system overall. The legacy system contributes specific analytical patterns — not architecture, not infrastructure, not execution logic — but **detection algorithms** that operate purely on OHLCV data and require zero MQL5 EA changes.
+**Bottom line:** MetaTraderBridge is the more capable system overall. The legacy system contributes specific analytical patterns — not architecture, not infrastructure, not execution logic — but **detection algorithms** that operate purely on OHLCV data and require zero MQL5 EA changes.
 
 **Estimated effort:** ~800 lines of Python across 3 new services + 3 new MCP endpoints.
 
@@ -31,7 +31,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | RSI-Price Bullish Divergence | Same logic on RSI(14) | +4 |
 | RSI-Price Bearish Divergence | Same logic on RSI(14) | -4 |
 
-**Why it matters:** TradeBridge has zero divergence detection. This is a pure pandas operation on `get_bars()` + `get_indicator()` output. No EA changes needed.
+**Why it matters:** MetaTraderBridge has zero divergence detection. This is a pure pandas operation on `get_bars()` + `get_indicator()` output. No EA changes needed.
 
 **Portability:** **As-is.** Indicator-agnostic math.
 
@@ -43,7 +43,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 
 #### 1.2 Multi-Bar Pattern Recognition
 
-**What it does:** Detects structural chart patterns that span multiple bars — beyond TradeBridge's existing 5 single-bar candlestick patterns.
+**What it does:** Detects structural chart patterns that span multiple bars — beyond MetaTraderBridge's existing 5 single-bar candlestick patterns.
 
 | Pattern | Detection Logic | Score Impact |
 |---------|----------------|-------------|
@@ -55,7 +55,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | Fibonacci Retracement | 0.618 retracement + RSI < 45 = high win-rate support zone | +6 |
 | Fibonacci Extension | 1.618 extension as profit target | +3 (if reached) / +4 (if holding) |
 
-**Why it matters:** TradeBridge's `chart_intelligence.py` only detects: doji, hammer, shooting_star, engulfing, inside_bar. These multi-bar patterns capture swing structures that single-bar patterns miss entirely.
+**Why it matters:** MetaTraderBridge's `chart_intelligence.py` only detects: doji, hammer, shooting_star, engulfing, inside_bar. These multi-bar patterns capture swing structures that single-bar patterns miss entirely.
 
 **Portability:** **As-is.** Pure OHLCV math. Fibonacci uses swing high/low points from existing `support_resistance()` data.
 
@@ -79,7 +79,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | RSI > 80 + STRONG_BUY signal | Downgrade to WATCH |
 | RSI < 20 + STRONG_SELL signal | Upgrade to WATCH |
 
-**Why it matters:** TradeBridge's `opportunity_rank.py` scores opportunity quality but does not penalize chasing. This is a simple post-score adjustment that prevents the AI agent from entering at exhaustion points.
+**Why it matters:** MetaTraderBridge's `opportunity_rank.py` scores opportunity quality but does not penalize chasing. This is a simple post-score adjustment that prevents the AI agent from entering at exhaustion points.
 
 **Portability:** **Needs adaptation.** The ±9.5% thresholds are A-share-specific (price limit mechanism). For MT5 forex/CFD, replace with:
 - ATR-based thresholds: price move > 2× ATR(14) from session open = chase risk
@@ -108,7 +108,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | Price -2% and vol > 3× | -3 | Price down + vol surge | -4 (distribution) |
 | Volume + big move correction | -3 to -5 | Same concept | Chase risk penalty |
 
-**Why it matters:** TradeBridge has `volatility_profile` (ATR-based) but nothing on volume anomalies. Volume confirms or invalidates price moves — a critical missing dimension.
+**Why it matters:** MetaTraderBridge has `volatility_profile` (ATR-based) but nothing on volume anomalies. Volume confirms or invalidates price moves — a critical missing dimension.
 
 **Portability:** **Needs adaptation.** A-share volume is tick volume (trade count), same as MT5. Only the threshold tiers need recalibration per symbol.
 
@@ -129,7 +129,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | Consumer | PE < 15 | 15-25 | 25-40 | > 40 |
 | Energy | PE < 6 | 6-12 | 12-18 | > 18 |
 
-**Why it matters:** TradeBridge has zero fundamental analysis. For CFD/forex, this maps to:
+**Why it matters:** MetaTraderBridge has zero fundamental analysis. For CFD/forex, this maps to:
 - **Forex pairs:** Real interest rate differentials (carry trade valuation)
 - **Indices:** Aggregate sector PE from constituent data
 - **Commodities:** Forward curve positioning (contango/backwardation as valuation signal)
@@ -147,7 +147,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 | Feature | Value | Effort | Verdict |
 |---------|-------|--------|---------|
 | Gold-silver ratio analysis (60-80 bands) | Moderate — universal for commodity pairs | Low | **Worth porting** if you trade XAU/XAG pair |
-| FinBERT sentiment pipeline | Moderate — TradeBridge already has keyword-based sentiment in `news_service.py` | Medium (swap CN model → ProsusAI/finbert) | **Skip** unless you want deep NLP sentiment |
+| FinBERT sentiment pipeline | Moderate — MetaTraderBridge already has keyword-based sentiment in `news_service.py` | Medium (swap CN model → ProsusAI/finbert) | **Skip** unless you want deep NLP sentiment |
 | Dragon-Tiger list equivalent | Low for forex, high for equities | High (needs SEC Form 4 / 13F / dark pool data) | **Skip** for current MT5 scope |
 | Northbound flow equivalent | Moderate — maps to ETF flow / institutional positioning | Medium (needs external data) | **Defer** to Phase 3+ when multi-asset |
 
@@ -155,7 +155,7 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 
 ## 2. What NOT to Port
 
-| Legacy Feature | Why Skip | TradeBridge Already Has |
+| Legacy Feature | Why Skip | MetaTraderBridge Already Has |
 |---|---|---|
 | Limit up/down pool scanning | China-specific ±10%/±20% price limits. No equivalent in forex/CFD. | `market/regime` (compressing regime captures squeeze) |
 | Fried plate pool (failed limit-up) | Only exists in price-limited markets | — |
@@ -174,9 +174,9 @@ A full audit of the legacy Chinese quant system (`~/.agents/skills/trading-quant
 
 ### Zero EA Changes Required
 
-All Tier 1 and Tier 2 features are **pure-Python analysis** operating on data already available via TradeBridge tools:
+All Tier 1 and Tier 2 features are **pure-Python analysis** operating on data already available via MetaTraderBridge tools:
 
-| Feature | Input Data Source | Existing TradeBridge Tool |
+| Feature | Input Data Source | Existing MetaTraderBridge Tool |
 |---------|-----------------|----------------------|
 | Divergence | Bars + MACD/RSI indicators | `get_bars()` + `get_indicator()` |
 | Pattern Recognition | Bars (OHLCV) | `get_bars()` |
@@ -299,11 +299,11 @@ None of the proposed features conflict with the ROADMAP's core thesis:
 
 **Start with Phase A (Divergence + Patterns).** These two features:
 1. Require zero EA changes
-2. Use data already available from existing TradeBridge tools
+2. Use data already available from existing MetaTraderBridge tools
 3. Add genuinely new analytical capability (not present anywhere in current codebase)
 4. Can be validated by comparing detected signals against visual chart inspection
 5. Total ~320 lines of Python, completable in one focused session
 
-**Skip the infrastructure.** The legacy system's fallback chains, caching layers, and data source managers are all superseded by TradeBridge's TCP bridge, data_store.py, and adapter architecture.
+**Skip the infrastructure.** The legacy system's fallback chains, caching layers, and data source managers are all superseded by MetaTraderBridge's TCP bridge, data_store.py, and adapter architecture.
 
-**Treat the scoring system as inspiration, not a blueprint.** The legacy 5-dimension weighted scoring (25/30/10/20/15) is a good framework, but TradeBridge's 7-factor `opportunity_rank` with regime-aware skip conditions is more sophisticated. Port the *individual analytical components* (divergence, patterns, volume) into the existing `opportunity_rank` framework rather than building a parallel scoring engine.
+**Treat the scoring system as inspiration, not a blueprint.** The legacy 5-dimension weighted scoring (25/30/10/20/15) is a good framework, but MetaTraderBridge's 7-factor `opportunity_rank` with regime-aware skip conditions is more sophisticated. Port the *individual analytical components* (divergence, patterns, volume) into the existing `opportunity_rank` framework rather than building a parallel scoring engine.

@@ -1,14 +1,14 @@
-# TradeBridge: AI-Agent UX Audit & Upgrade Plan
+# MetaTraderBridge: AI-Agent UX Audit & Upgrade Plan
 
 **Date:** 2026-05-12  
-**Scope:** Complete audit of TradeBridge infrastructure from an AI-agent user experience perspective  
+**Scope:** Complete audit of MetaTraderBridge infrastructure from an AI-agent user experience perspective  
 **Methodology:** Codebase exploration (72 MCP tools, ~122 HTTP endpoints, 31 service modules) + Web research (QuantConnect MCP, MCP best practices, arXiv research on tool descriptions) + Real-world agent session analysis (Jesse session logs)
 
 ---
 
 ## Executive Summary
 
-TradeBridge already has a **remarkably comprehensive tool surface** — 72 MCP tools, ~122 HTTP endpoints, and 31 service modules. This is the most thorough MT5-focused AI-trading infrastructure I've seen in a single codebase. However, it has critical gaps that degrade AI-agent UX:
+MetaTraderBridge already has a **remarkably comprehensive tool surface** — 72 MCP tools, ~122 HTTP endpoints, and 31 service modules. This is the most thorough MT5-focused AI-trading infrastructure I've seen in a single codebase. However, it has critical gaps that degrade AI-agent UX:
 
 1. **4 broken endpoints** destroy agent trust and force inefficient workarounds
 2. **Tool descriptions need a systematic upgrade** (research shows 97.1% of MCP tool descriptions have "smells" degrading agent performance by up to 5.85pp)
@@ -124,7 +124,7 @@ Infrastructure: cache, data_store, gateway_queue, execution_gateway, tcp_bridge_
 
 Based on research of QuantConnect LEAN + MCP best practices + professional algo trading:
 
-| Layer | What | TradeBridge Grade | Gap |
+| Layer | What | MetaTraderBridge Grade | Gap |
 |---|---|---|---|
 | 1. Data | Market data, fundamentals, news, alt data | **A-** | MT5-locked, no alt data or fundamental APIs |
 | 2. Analysis | Indicators, patterns, backtesting, research | **B** | Strong analysis tools, **zero integrated backtesting** |
@@ -182,7 +182,7 @@ arXiv research (2025) analyzed 35,000+ MCP tool descriptions and found:
 - Descriptions with smells degrade agent performance by **up to 5.85 percentage points**
 - Agents select wrong tools, use wrong parameters, or inflate execution steps
 
-### Current State of TradeBridge Descriptions
+### Current State of MetaTraderBridge Descriptions
 
 Sampling of current tool descriptions shows a common pattern:
 ```
@@ -241,9 +241,9 @@ For each tool, verify:
 
 ---
 
-## Part 4: Comparative Analysis — TradeBridge vs. QuantConnect for AI Agents
+## Part 4: Comparative Analysis — MetaTraderBridge vs. QuantConnect for AI Agents
 
-| Dimension | TradeBridge | QuantConnect (LEAN) |
+| Dimension | MetaTraderBridge | QuantConnect (LEAN) |
 |---|---|---|
 | **Focus** | MT5 execution infrastructure | Multi-asset quant research platform |
 | **MCP Tools** | 72 (execution-heavy) | 64 (research-heavy) |
@@ -257,7 +257,7 @@ For each tool, verify:
 | **Multi-Agent** | None | AGENT_NAME tracking |
 | **Documentation Search** | None | Vector search over docs |
 
-**Takeaway:** TradeBridge is **execution-superior** (more trading tools, tighter MT5 integration) but **research-inferior**. The ideal next state combines TradeBridge's execution muscle with QuantConnect-style research and risk infrastructure.
+**Takeaway:** MetaTraderBridge is **execution-superior** (more trading tools, tighter MT5 integration) but **research-inferior**. The ideal next state combines MetaTraderBridge's execution muscle with QuantConnect-style research and risk infrastructure.
 
 ---
 
@@ -349,7 +349,7 @@ For each tool, verify:
 
 ## Part 7: Tool Surface Comparison Summary
 
-| Capability | TradeBridge (Now) | TradeBridge (Post-Phase 1) | TradeBridge (Post-Phase 4) | QuantConnect |
+| Capability | MetaTraderBridge (Now) | MetaTraderBridge (Post-Phase 1) | MetaTraderBridge (Post-Phase 4) | QuantConnect |
 |---|---|---|---|---|
 | Market data | ✅ | ✅ | ✅ | ✅ |
 | Technical analysis | ✅ | ✅ | ✅ | ✅ |
@@ -375,7 +375,7 @@ For each tool, verify:
 
 ## Appendix: Data Sources
 
-- **Codebase analysis:** 197 files across TradeBridge (72 MCP tools, 31 services, ~122 HTTP endpoints)
+- **Codebase analysis:** 197 files across MetaTraderBridge (72 MCP tools, 31 services, ~122 HTTP endpoints)
 - **Real agent session:** Jesse autonomous trading session (250+ tool calls, 2 hours, 1 trade)
 - **Web research:** QuantConnect MCP server (64 tools, 14 categories), arXiv MCP description quality study, MCP protocol best practices (May 2026)
 - **Comparative benchmarks:** QuantConnect LEAN engine architecture, 3Commas, Cryptohopper, Trade Ideas

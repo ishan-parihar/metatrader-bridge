@@ -1,6 +1,6 @@
-"""TradeBridge MCP tool wrappers for Vibe-Trading capabilities.
+"""MetaTraderBridge MCP tool wrappers for Vibe-Trading capabilities.
 
-These functions are registered with the TradeBridge MCP server
+These functions are registered with the MetaTraderBridge MCP server
 and forward calls to the Vibe-Trading subprocess via the gateway client.
 """
 
@@ -75,7 +75,7 @@ async def vibe_swarm_to_signal(report: str, preset: str = "") -> str:
     """Extract tradeable signal from a Vibe-Trading swarm report.
 
     Parses the report for BUY/SELL recommendations with entry/exit levels
-    and returns TradeBridge-compatible order parameters.
+    and returns MetaTraderBridge-compatible order parameters.
     """
     signal = extract_signal_from_swarm_report(report, preset)
     if signal is None:

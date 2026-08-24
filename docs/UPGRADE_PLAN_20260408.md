@@ -1,4 +1,4 @@
-# TradeBridge Upgrade Plan
+# MetaTraderBridge Upgrade Plan
 
 > **Generated:** 2026-04-08 | **Source:** UPGRADE_MANDATE_20260408.md + Agent Request
 > **Scope:** EA (MQL5) + MCP Server (Python) + Trading Skill (Agent Playbook) — treated as single project

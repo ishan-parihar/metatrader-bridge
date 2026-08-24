@@ -1,4 +1,4 @@
-# Proposal: TradeBridge MCP Tool Consolidation with Vibe-Trading Integration
+# Proposal: MetaTraderBridge MCP Tool Consolidation with Vibe-Trading Integration
 
 **Date:** 2026-04-14
 **Branch:** `feature/vibe-trading-integration`
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-TradeBridge now has Vibe-Trading integrated as a research/strategy/backtesting backend. This creates overlap with ~18 existing TradeBridge tools. This proposal identifies which tools to remove, which to keep, and — critically — assesses whether Vibe-Trading's data capabilities are production-grade enough to justify replacing TradeBridge-native tools.
+MetaTraderBridge now has Vibe-Trading integrated as a research/strategy/backtesting backend. This creates overlap with ~18 existing MetaTraderBridge tools. This proposal identifies which tools to remove, which to keep, and — critically — assesses whether Vibe-Trading's data capabilities are production-grade enough to justify replacing MetaTraderBridge-native tools.
 
 **Bottom-line recommendation:** Remove 2 files (18 tools), keep all 56 MT5-native tools. Vibe-Trading is excellent for research and swing-strategy development, but its data pipeline is NOT production-grade for real-time execution decisions.
 
@@ -76,7 +76,7 @@ Global futures engine exists (GC gold, CL oil, SI silver, etc.) with proper cont
 
 ### 2.3 Real-Time Capability: NONE
 
-| Capability | TradeBridge | Vibe-Trading |
+| Capability | MetaTraderBridge | Vibe-Trading |
 |---|---|---|
 | Live bid/ask prices | ✅ Via EA (15-25ms) | ❌ No |
 | Tick-by-tick data | ✅ Via `mt5_get_ticks` | ❌ No |
@@ -149,7 +149,7 @@ Global futures engine exists (GC gold, CL oil, SI silver, etc.) with proper cont
 
 ### 4.1 Must Keep — MT5 Execution Bridge
 
-These are TradeBridge's core value proposition. Vibe-Trading cannot replace these:
+These are MetaTraderBridge's core value proposition. Vibe-Trading cannot replace these:
 
 | Category | Tools | Why |
 |----------|-------|-----|
@@ -182,7 +182,7 @@ These tools manage a local SQLite data store for imported historical data. They 
 ## 5. Architecture After Cleanup
 
 ```
-TradeBridge MCP Server (Port 8010)
+MetaTraderBridge MCP Server (Port 8010)
 ├── MT5 Execution Layer (16 tools)    ← Real-time order execution via EA
 ├── Live Market Data (11 tools)       ← Real-time bars, indicators, ticks
 ├── Account & Positions (8 tools)     ← Live MT5 terminal state
@@ -210,7 +210,7 @@ Total: 66 tools (down from 80)
 - Eliminates Python 3.14 crash in `tools_analysis.py`
 - Reduces MCP server startup time (fewer module imports)
 - Reduces tool confusion for AI agents (fewer tools to choose from)
-- Clear separation: TradeBridge = execution, Vibe-Trading = research
+- Clear separation: MetaTraderBridge = execution, Vibe-Trading = research
 
 ### 6.3 Migration Path for Removed Tools
 
@@ -246,7 +246,7 @@ Phase 1 — Vibe-Trading (Research):
   vibe_backtest(run_dir="/path/to/strategy")
   vibe_swarm_to_signal(report) → generates trade hypothesis
 
-Phase 2 — TradeBridge (Execution):
+Phase 2 — MetaTraderBridge (Execution):
   mt5_get_bars(symbol="XAUUSD", timeframe="H1") → verify current price action
   mt5_trading_context(symbol="XAUUSD") → check live conditions
   mt5_calculate_position_size(...) → compute lot size
@@ -255,7 +255,7 @@ Phase 2 — TradeBridge (Execution):
   mt5_log_trade_decision(...) → journal
 ```
 
-Vibe-Trading generates the hypothesis. TradeBridge validates it against live data and executes.
+Vibe-Trading generates the hypothesis. MetaTraderBridge validates it against live data and executes.
 
 ---
 
@@ -293,8 +293,8 @@ tools_ml,         # REMOVED
 | Risk | Likelihood | Mitigation |
 |------|-----------|------------|
 | Agent workflows break from removed tools | Medium | Document replacements; agents can adapt to 66 tools |
-| `tools_analysis.py` removal loses unique features | Low | All features covered by Vibe or existing TradeBridge tools |
-| Forex data gap in Vibe-Trading not addressed | High | Out of scope — TradeBridge handles forex live data natively |
+| `tools_analysis.py` removal loses unique features | Low | All features covered by Vibe or existing MetaTraderBridge tools |
+| Forex data gap in Vibe-Trading not addressed | High | Out of scope — MetaTraderBridge handles forex live data natively |
 | Python 3.14 compatibility issues persist | Low | Removing `tools_analysis.py` eliminates the known crash |
 
 ---

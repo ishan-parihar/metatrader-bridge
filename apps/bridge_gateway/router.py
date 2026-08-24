@@ -1,4 +1,4 @@
-"""Shared APIRouter for TradeBridge gateway endpoints.
+"""Shared APIRouter for MetaTraderBridge gateway endpoints.
 
 Provides all /bridge/* and /api/vibe/* routes as a reusable FastAPI
 APIRouter. Imported by both apps/bridge_gateway/main.py (standalone

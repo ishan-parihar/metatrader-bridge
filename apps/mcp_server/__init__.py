@@ -1,4 +1,4 @@
-"""TradeBridge FastMCP server factory.
+"""MetaTraderBridge FastMCP server factory.
 
 Creates a FastMCP instance and registers all tool modules.
 Tool files import `mcp` from this package and use `@mcp.tool()` decorators.
@@ -14,13 +14,13 @@ from mcp.server.fastmcp import FastMCP
 
 # Global MCP instance — tool files import this and register via @mcp.tool()
 mcp = FastMCP(
-    name="TradeBridge",
+    name="MetaTraderBridge",
     instructions="MetaTrader 5 MCP server for AI-driven trading.",
 )
 
 
 def create_mcp_server() -> FastMCP:
-    """Create and configure the TradeBridge FastMCP server.
+    """Create and configure the MetaTraderBridge FastMCP server.
 
     Imports all tool modules to trigger @mcp.tool() registration side effects,
     then returns the global mcp instance.
