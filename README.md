@@ -280,6 +280,10 @@ curl http://localhost:8010/health
 
 - **[Jesse](https://github.com/ishanp321/jesse)** — Autonomous AI Trading Agent (LangChain ReAct) consuming MetaTraderBridge as trading backend
 
+## Documentation
+
+Every doc in `docs/` is listed with the question it answers in [docs/PAGE-INDEX.md](docs/PAGE-INDEX.md).
+
 ## License
 
 MIT
