@@ -27,15 +27,9 @@ Every page under `docs/`, with the question it answers. Pages named `README.md` 
 | [`trading_audit_report.md`](trading_audit_report.md) | EVIDENCE | MCP Trading System — Post-Session Audit & Improvement Report | — |
 | [`waiting_tools_bug_report.md`](waiting_tools_bug_report.md) | EVIDENCE | Waiting Tools Bug Report | — |
 | [`waiting_tools_migration_plan.md`](waiting_tools_migration_plan.md) | PLAN | Migration Plan: Waiting Tools → Official MCP SDK | — |
-| [`EA_COMPILATION_FIX.md`](EA_COMPILATION_FIX.md) | EA Compilation Fix — The MT5 SymbolSelect() function requires 2 parameters:
-- symbol - The symbol name
-- select - true to select, f… |
-| [`MCP_TOOL_USAGE_REPORT.md`](kb/MCP_TOOL_USAGE_REPORT.md) | MetaTraderBridge Tool Usage Report: Autonomous Trading Agent "Jesse" — The MetaTraderBridge server is functionally operational for core market data and order management but has crit… |
-| [`2026-04-02-PLAN.md`](plans/2026-04-02-PLAN.md) | MetaTrader 5 ↔ MCP Bridge Blueprint for Arch Linux — Version: 1.0  
-Audience: R&D engineering, platform engineering, quant engineering, infra/security  
-Status: De… |
-| [`2026-04-09-RND_ANALYSIS_ENGINE.md`](audit/2026-04-09-RND_ANALYSIS_ENGINE.md) | R&D Recommendation: Analysis Engine Enhancements — A full audit of the legacy Chinese quant system (~/.agents/skills/trading-quant/, 1011-line CLI with 25 tools… |
-| [`2026-04-07-ROADMAP.md`](audit/2026-04-07-ROADMAP.md) | MT5 Python Algo-Trading Roadmap — After auditing 5 AlphaForge projects, 2 external frameworks (FinRL, NautilusTrader), and 20+ external repos, t… |
-| [`SYMBOL_SUFFIX_FIX.md`](SYMBOL_SUFFIX_FIX.md) | Symbol Suffix Fix for MT5-MCP Bridge — Added new configuration option:
-python
-symbolsuffix: str = os.getenv("MT5SYMBOLSUFFIX", "m")… |
+| [`EA_COMPILATION_FIX.md`](EA_COMPILATION_FIX.md) | EA Compilation Fix — The MT5 SymbolSelect() function requires 2 parameters: - symbol - The symbol name - select - true to select, f… | EA Compilation Fix — The MT5 SymbolSelect() function requires 2 parameters: - symbol - The symbol name - select - true to… | — |
+| [`MCP_TOOL_USAGE_REPORT.md`](kb/MCP_TOOL_USAGE_REPORT.md) | MetaTraderBridge Tool Usage Report: Autonomous Trading Agent "Jesse" — The MetaTraderBridge server is functionally operational for core market data and order management but has crit… | MetaTraderBridge Tool Usage Report: Autonomous Trading Agent "Jesse" — The MetaTraderBridge server is functionally operational for core market data and order management bu… | — |
+| [`2026-04-02-PLAN.md`](plans/2026-04-02-PLAN.md) | MetaTrader 5 ↔ MCP Bridge Blueprint for Arch Linux — Version: 1.0 Audience: R&D engineering, platform engineering, quant engineering, infra/security Status: De… | MetaTrader 5 ↔ MCP Bridge Blueprint for Arch Linux — Version: 1.0 Audience: R&D engineering, platform engineering, quant engineering, infra/security Stat… | — |
+| [`2026-04-09-RND_ANALYSIS_ENGINE.md`](audit/2026-04-09-RND_ANALYSIS_ENGINE.md) | R&D Recommendation: Analysis Engine Enhancements — A full audit of the legacy Chinese quant system (~/.agents/skills/trading-quant/, 1011-line CLI with 25 tools… | R&D Recommendation: Analysis Engine Enhancements — A full audit of the legacy Chinese quant system (~/.agents/skills/trading-quant/, 1011-line CLI with… | — |
+| [`2026-04-07-ROADMAP.md`](audit/2026-04-07-ROADMAP.md) | MT5 Python Algo-Trading Roadmap — After auditing 5 AlphaForge projects, 2 external frameworks (FinRL, NautilusTrader), and 20+ external repos, t… | MT5 Python Algo-Trading Roadmap — After auditing 5 AlphaForge projects, 2 external frameworks (FinRL, NautilusTrader), and 20+ externa… | — |
+| [`SYMBOL_SUFFIX_FIX.md`](SYMBOL_SUFFIX_FIX.md) | Symbol Suffix Fix for MT5-MCP Bridge — Added new configuration option: python symbolsuffix: str = os.getenv("MT5SYMBOLSUFFIX", "m")… | Symbol Suffix Fix for MT5-MCP Bridge — Added new configuration option: python symbolsuffix: str = os.getenv("MT5SYMBOLSUFFIX", "m")… | — |

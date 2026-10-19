@@ -244,7 +244,7 @@ This section provides concise, linkable definitions for use in the roadmap and o
 - **Read/Reference**: `.sisyphus/plans/MetaTraderBridge-arsenal-upgrade-roadmap.md` (Phases 0.1, 0.2, 1.1, 1.2)
 - **Read/Reference**: `skills/mt5-trading/SKILL.md` (Phase 0 ownership guidance)
 - **Read/Reference**: `src/mt5_mcp/services/agent_prompt.py` (session identity injection)
-- **Read/Reference**: `PLAN.md` (§8.1 canonical trade intent, §8.2 execution result)
+- **Read/Reference**: `docs/plans/2026-04-02-PLAN.md` (§8.1 canonical trade intent, §8.2 execution result)
 - **Modify (Phase 0.1)**: `src/mt5_mcp/schemas/models.py` — standardize identity field meanings
 - **Modify (Phase 0.1)**: `src/mt5_mcp/schemas/tools.py` — add missing ownership fields to write tool schemas
 - **Modify (Phase 0.1)**: `skills/mt5-trading/SKILL.md` — align terminology with this ADR
