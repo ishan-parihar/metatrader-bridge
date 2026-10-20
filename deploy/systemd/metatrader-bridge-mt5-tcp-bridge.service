@@ -1,0 +1,28 @@
+[Unit]
+Description=MetaTraderBridge TCP Bridge Server
+Documentation=file:///home/ishanp/Documents/github/my-projects/qf-core/metatrader-bridge/deploy/README.md
+After=network.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ishanp
+Group=ishanp
+WorkingDirectory=/home/ishanp/Documents/github/my-projects/qf-core/metatrader-bridge
+Environment=PYTHONPATH=/home/ishanp/Documents/github/my-projects/qf-core/metatrader-bridge/src
+Environment=PYTHONUNBUFFERED=1
+Environment=MT5_TCP_BRIDGE_PORT=8025
+Environment=MT5_TCP_BRIDGE_HOST=127.0.0.1
+Environment=MT5_TCP_BRIDGE_MCP_PORT=8026
+Environment=MT5_GATEWAY_URL=http://127.0.0.1:8020
+ExecStart=/usr/bin/python -m apps.tcp_bridge.main
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mt5-tcp-bridge
+
+[Install]
+WantedBy=multi-user.target
